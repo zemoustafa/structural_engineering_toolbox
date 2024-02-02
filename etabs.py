@@ -391,3 +391,6 @@ class etabsAPI:
         """
 
         pass
+
+    def set_wall_modifiers():
+        pass
