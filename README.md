@@ -1,3 +1,5 @@
-### ETABS API
+### Structural Engineering Toolbox
 
-This library allows easy access to data in an open ETABS model.
+This library contains various tools to aid with structural design.
+
+More info to come.
