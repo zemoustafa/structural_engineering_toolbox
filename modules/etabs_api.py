@@ -392,5 +392,75 @@ class etabs_api:
 
         pass
 
+    def create_concrete_column_property(self, width:float, depth:float, bars_x:int, bars_y:int, db:int, material:str, reo_mat:str) -> int:
+        """ Create new concrete column frame property
+        
+        :param width: width or column section (shorter dimension). if depth = 0, width = diameter of column
+        :param depth: depth of column section (longer dimension). if depth = 0, create circular column
+        :param bars_x: number of bars along the x (3) direction
+        :param bars_y: number of bars along the y (2) direction
+        :param db: diameter of vertical bars
+        :param material: name of material property to assign to column
+        :param reo_mat: name of reinforcement material property to assign to column bars
+
+        :type width: float
+        :type depth: float
+        :type bars_x: int
+        :type bars_y: int
+        :type db: int
+        :type material: str
+        :type reo_mat: str
+
+        :return result: returns 0 if column successfully created, otherwise returns 1
+        """
+        material_props = self.sap_model.PropMaterial.GetOConcrete_1(material)
+        fc = round(material_props[0] / 1000)
+
+        # constants
+        cover = 50
+        tie_dia = 12
+        tie_cts = 300
+        bars_circle = 0
+        num_2_dir_bars, num_3_dir_bars = 0, 0
+
+        if depth == 0: # circular column
+            name = "C"+str(width)+"C"+str(fc)
+            pattern = 2
+            confine_type = 2
+            conc_column = self.sap_model.PropFrame.SetCircle(name, material, width/1000)
+            bars_circle = bars_x
+            bars_x, bars_y = 0, 0
+
+        else: # rectangular column
+            name = "C"+str(width)+"X"+str(depth)+"C"+str(fc)
+            pattern = 1
+            confine_type = 1
+            conc_column = self.sap_model.PropFrame.SetRectangle(name, material, width/1000, depth/1000)
+            num_2_dir_bars = bars_y
+            num_3_dir_bars = bars_x
+
+        set_reo = self.sap_model.PropFrame.SetRebarColumn(
+            name, 
+            reo_mat, 
+            reo_mat, 
+            pattern, 
+            confine_type, 
+            cover/1000, 
+            bars_circle, 
+            bars_x, 
+            bars_y, 
+            "N"+str(db), 
+            "N"+str(tie_dia),
+            tie_cts/1000,
+            num_2_dir_bars,
+            num_3_dir_bars,
+            False
+            )
+        
+        result = 0 if set_reo == 0 and conc_column == 0 else 1
+
+        return result
+
+
     def set_wall_modifiers():
         pass
