@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
-from AS3600WallDesign import loading
+import sys
+sys.path.append(r"C:\_Github\structural_engineering_toolbox")
+from modules import load_factors
 import copy
 
 # -------------------------------------------------------------------------------------------------------------
@@ -16,14 +18,14 @@ def full_wall_design(walls:list[dict], load_cases:list[str], vcts:list[float], h
             g = load_cases[0]
             q = load_cases[1]
             rs = load_cases[2]
-            wx = load_cases[3]
-            wy = load_cases[4]
+            # wx = load_cases[3]
+            # wy = load_cases[4]
 
             p_g = wall[g]['p']
             p_q = wall[q]['p']
             p_rs = wall[rs]['p']
-            p_wx = wall[wx]['p']
-            p_wy = wall[wy]['p']
+            # p_wx = wall[wx]['p']
+            # p_wy = wall[wy]['p']
 
             v2_g = wall[g]['v2']
             v2_q = wall[q]['v2']
@@ -32,8 +34,8 @@ def full_wall_design(walls:list[dict], load_cases:list[str], vcts:list[float], h
             m3_g = wall[g]['m3']
             m3_q = wall[q]['m3']
             m3_rs = wall[rs]['m3']
-            m3_wx = wall[wx]['m3']
-            m3_wy = wall[wy]['m3']
+            # m3_wx = wall[wx]['m3']
+            # m3_wy = wall[wy]['m3']
 
             tw = wall['thickness_bot']
             Lw = wall['width_bot']
@@ -42,8 +44,8 @@ def full_wall_design(walls:list[dict], load_cases:list[str], vcts:list[float], h
 
             # wall prelim checks
             wall['G+0.3Q (MPa)'] = (p_g + 0.3 * p_q) / (tw * Lw) # seismic weight
-            wall['G+0.3Q+RS (C)(MPa)'] = loading.EQCompStress(p_g, p_q, p_rs, m3_g, m3_q, m3_rs, tw, Lw)
-            wall['G+0.3Q-RS (T)(MPa)'] = loading.EQTensStress(p_g, p_q, p_rs, m3_g, m3_q, m3_rs, tw, Lw)
+            wall['G+0.3Q+RS (C)(MPa)'] = load_factors.EQCompStress(p_g, p_q, p_rs, m3_g, m3_q, m3_rs, tw, Lw)
+            wall['G+0.3Q-RS (T)(MPa)'] = load_factors.EQTensStress(p_g, p_q, p_rs, m3_g, m3_q, m3_rs, tw, Lw)
             wall['Axial Load Ratio'] = axial_load_ratio(tw, Lw, wall['G+0.3Q (MPa)']) # check axial load ratio
             wall['Slenderness Ratio'] = slenderness_ratio(tw, hw, mu_sp) # check slenderness ratio
 
@@ -58,7 +60,7 @@ def full_wall_design(walls:list[dict], load_cases:list[str], vcts:list[float], h
             wall['BE Width'], wall['Lig Dia'], wall['Lig Cts'] = boundary_element(tw, Lw, fc, wall['G+0.3Q+RS (C)(MPa)'], wall['db Vert'])
 
             # shear reinforcement
-            eq_shear = loading.EQShear(v2_g, v2_q, v2_rs)
+            eq_shear = load_factors.EQShear(v2_g, v2_q, v2_rs)
             wall['EQ Shear'] = adjusted_eq_shear(wall['story_name'], mu_sp, eq_shear, phz_levels)
             wall['Vuc'], wall['Vus'], wall['phiVu'], wall['db Horiz'], wall['s Horiz'] = shear_design(tw, Lw, hw, fc, hcts, 500, wall['EQ Shear'])
 
@@ -93,7 +95,7 @@ def optimise_walls(walls:list[dict], stress_limit:float, load_cases:list[str], m
         for i in range(tw_index):
             if flag:
                 break
-            eq_load = loading.EQCompStress(p_g, p_q, p_rs, m3_g, m3_q, m3_rs, tw_range[i], wall_Lw) # recalculate eq compressive stress
+            eq_load = load_factors.EQCompStress(p_g, p_q, p_rs, m3_g, m3_q, m3_rs, tw_range[i], wall_Lw) # recalculate eq compressive stress
             slenderness = slenderness_ratio(wall_tw, wall_hw, mu_sp)
             for j in range(fc_index):
                 max_fc = stress_limit * fc_range[j]
@@ -128,6 +130,55 @@ def pier_as_columns(walls:list[dict], load_cases:list[str]) -> list[dict]:
 
     return piers_as_columns
     
+def piers_as_walls_dataframe(walls:list[dict]) -> pd.DataFrame:
+    selected_keys = [
+            'pier_name',
+            'story_name',
+            'story_height',
+            'thickness_bot',
+            'width_bot',
+            'fc',
+            'G+0.3Q (MPa)',
+            'G+0.3Q+RS (C)(MPa)',
+            'G+0.3Q-RS (T)(MPa)',
+            'Axial Load Ratio',
+            'Slenderness Ratio',
+            'Rho crit.',
+            'Rho typ.',
+            'db Vert',
+            's Vert',
+            "0.15f'c",
+            "0.2f'c",
+            "0.585f'c",
+            'BE Width',
+            'Lig Dia',
+            'Lig Cts',
+            'EQ Shear',
+            'Vuc',
+            'Vus',
+            'phiVu',
+            'db Horiz',
+            's Horiz'
+            ]
+    df = pd.DataFrame([{key: wall[key] for key in selected_keys} for wall in walls])
+
+    color_mapping = {
+    'Axial Load Ratio': {"<0.2, OK": 'green', "Increase f'c or wall thickness": 'red'},
+    'Slenderness Ratio': {"<20, OK": 'green', "Slender wall. Increase thickness": 'red'}
+        }
+
+    def highlight_cells(val, col, color_mapping):
+        return f'background-color: {color_mapping.get(col, {}).get(val, "white")}'
+
+    def apply_style(df, color_mapping):
+        styled_df = df.style
+        for col in ['Axial Load Ratio', 'Slenderness Ratio']:
+            styled_df = styled_df.applymap(lambda x, col=col: highlight_cells(x, col, color_mapping), subset=[col])
+        return styled_df
+
+    styled_df = apply_style(df, color_mapping)
+    
+    return styled_df
 
 
 # -------------------------------------------------------------------------------------------------------------
@@ -344,35 +395,3 @@ def precast_dowels(tw:float, Lw:float, story:str, V_star:float, tens_stress:floa
 # CREATE WALL DATAFRAME
 # -------------------------------------------------------------------------------------------------------------
 
-def piers_as_walls_daframe(walls:list[dict])->pd.DataFrame:
-    selected_keys = [
-        'pier_name',
-        'story_name',
-        'story_height',
-        'thickness_bot',
-        'width_bot',
-        'fc',
-        'G+0.3Q (MPa)',
-        'G+0.3Q+RS (C)(MPa)',
-        'G+0.3Q-RS (T)(MPa)',
-        'Axial Load Ratio',
-        'Slenderness Ratio',
-        'Rho crit.',
-        'Rho typ.',
-        'db Vert',
-        's Vert',
-        "0.15f'c",
-        "0.2f'c",
-        "0.585f'c",
-        'BE Width',
-        'Lig Dia',
-        'Lig Cts',
-        'EQ Shear',
-        'Vuc',
-        'Vus',
-        'phiVu',
-        'db Horiz',
-        's Horiz'
-        ]
-    df = pd.DataFrame([{key: wall[key] for key in selected_keys} for wall in walls])
-    return df
