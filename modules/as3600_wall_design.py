@@ -131,6 +131,14 @@ def pier_as_columns(walls:list[dict], load_cases:list[str]) -> list[dict]:
     return piers_as_columns
     
 def piers_as_walls_dataframe(walls:list[dict]) -> pd.DataFrame:
+    ''' Create styled dataframe containing wall design.
+
+    :param walls: list of dicts containing designed walls. must have run full_wall_design() function.
+    :type walls: list[dicts]
+
+    :return styled_df: styled dataframe containing wall design 
+    :type styled_df: pd.Dataframe
+    '''
     selected_keys = [
             'pier_name',
             'story_name',
