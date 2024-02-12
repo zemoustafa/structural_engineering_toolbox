@@ -39,19 +39,19 @@ class etabs_api:
 
         for section_property in self.pier_section_properties:
             for story in self.story_data:
-                if section_property["story_name"] == story["story_name"]:
-                    section_property["story_height"] = round(story["story_height"] * 1000, 0)
+                if section_property["Story Name"] == story["Story Name"]:
+                    section_property["Story Height"] = round(story["Story Height"] * 1000, 0)
 
             for material_prop in self.concrete_material_properties:
-                if section_property["mat_prop"] == material_prop["mat_name"]:
+                if section_property["Mat Prop"] == material_prop["Mat Name"]:
                     section_property["fc"] = material_prop["fc"]
 
             for pier_force in pier_forces:
                 if (
-                    section_property["story_name"] == pier_force["story_name"]
-                    and section_property["pier_name"] == pier_force["pier_name"]
+                    section_property["Story Name"] == pier_force["Story Name"]
+                    and section_property["Pier Name"] == pier_force["Pier Name"]
                 ):
-                    section_property[pier_force["load_case"]] = pier_force
+                    section_property[pier_force["Load Case"]] = pier_force
 
             piers.append(section_property)
 
@@ -76,10 +76,10 @@ class etabs_api:
                 location = pier_force[4][i]
                 if location == "Bottom":
                     pier_force_dict = {
-                        "story_name": pier_force[1][i],
-                        "pier_name": pier_force[2][i],
-                        "load_case": pier_force[3][i],
-                        "location": pier_force[4][i],
+                        "Story Name": pier_force[1][i],
+                        "Pier Name": pier_force[2][i],
+                        "Load Case": pier_force[3][i],
+                        "Location": pier_force[4][i],
                         "p": pier_force[5][i],
                         "v2": pier_force[6][i],
                         "v3": pier_force[7][i],
@@ -115,9 +115,9 @@ class etabs_api:
         for i in range(number_stories):
             story_data.append(
                 {
-                "story_name": story_names[i],
-                "story_elevation":story_elevations[i], 
-                "story_height": story_heights[i]}
+                "Story Name": story_names[i],
+                "Story Elevation":story_elevations[i], 
+                "Story Height": story_heights[i]}
             )
         return story_data
 
@@ -134,22 +134,22 @@ class etabs_api:
             for i in range(number_stories):
                 section_properties.append(
                     {
-                        "pier_name": name,
-                        "story_name": piers[1][i],
-                        "axis_angle": piers[2][i],
-                        "num_area_objs": piers[3][i],
-                        "num_line_objs": piers[4][i],
-                        "width_bot": round(piers[5][i] * 1000, 0),
-                        "thickness_bot": piers[6][i] * 1000,
-                        "width_top": round(piers[7][i] * 1000, 0),
-                        "thickness_top": piers[8][i] * 1000,
-                        "mat_prop": piers[9][i],
-                        "cg_bot_x": piers[10][i],
-                        "cg_bot_y": piers[11][i],
-                        "cg_bot_z": piers[12][i],
-                        "cg_top_x": piers[13][i],
-                        "cg_top_y": piers[14][i],
-                        "cg_top_z": piers[15][i],
+                        "Pier Name": name,
+                        "Story Name": piers[1][i],
+                        "Axis Angle": piers[2][i],
+                        "Num Area Objs": piers[3][i],
+                        "Num Line Objs": piers[4][i],
+                        "Width Bot": round(piers[5][i] * 1000, 0),
+                        "Thickness Bot": piers[6][i] * 1000,
+                        "Width Top": round(piers[7][i] * 1000, 0),
+                        "Thickness Top": piers[8][i] * 1000,
+                        "Mat Prop": piers[9][i],
+                        "CG Bot X": piers[10][i],
+                        "CG Bot Y": piers[11][i],
+                        "CG Bot Z": piers[12][i],
+                        "CG Top X": piers[13][i],
+                        "CG Top Y": piers[14][i],
+                        "CG Top Z": piers[15][i],
                     }
                 )
         return section_properties
@@ -192,17 +192,17 @@ class etabs_api:
             number_mat = len(mat_names)
             conc_mat.append(
                 {
-                    "mat_name": mat_name,
+                    "Mat Name": mat_name,
                     "fc": material[0] / 1000,
-                    "is_lightweight": material[1],
-                    "fcs_factor": material[2],
-                    "ss_type": material[3],
-                    "ss_hys_type": material[4],
-                    "strain_at_fc": material[5],
-                    "strain_ult": material[6],
-                    "final_slope": material[7],
-                    "friction_angle": material[8],
-                    "dilation_angle": material[9],
+                    "Is Lightweight": material[1],
+                    "fcs Factor": material[2],
+                    "SS Type": material[3],
+                    "SS Hys Type": material[4],
+                    "Strain at fc": material[5],
+                    "Strain Ult": material[6],
+                    "Final SLope": material[7],
+                    "Friction Angle": material[8],
+                    "Dilation Angle": material[9],
                 }
             )
         return conc_mat

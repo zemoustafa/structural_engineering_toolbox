@@ -5,15 +5,17 @@ sys.path.append(r"C:\_Github\structural_engineering_toolbox")
 from modules import load_factors
 import copy
 
-# -------------------------------------------------------------------------------------------------------------
-# WALL OVERALL FUNCTIONS
-# -------------------------------------------------------------------------------------------------------------
+'''
+Wall overall design functions
 
+These functions will be used to design many walls at once, where each wall is represented in a dict
+
+'''
 # DESIGN ALL WALLS
 def full_wall_design(walls:list[dict], load_cases:list[str], vcts:list[float], hcts:list[float], story_names:list[str], phz_levels:list[str], wall_type:str, mu_sp:float) -> list[dict]:
     piers_as_walls = []
     for wall in walls:
-        wall['Design as'] = design_as(wall['thickness_bot'], wall['width_bot'], wall['story_height'])
+        wall['Design as'] = design_as(wall['Thickness Bot'], wall['Width Bot'], wall['Story Height'])
         if wall['Design as'] == 'Design as wall':
             g = load_cases[0]
             q = load_cases[1]
@@ -37,9 +39,9 @@ def full_wall_design(walls:list[dict], load_cases:list[str], vcts:list[float], h
             # m3_wx = wall[wx]['m3']
             # m3_wy = wall[wy]['m3']
 
-            tw = wall['thickness_bot']
-            Lw = wall['width_bot']
-            hw = wall['story_height']
+            tw = wall['Thickness Bot']
+            Lw = wall['Width Bot']
+            hw = wall['Story Height']
             fc = wall['fc']
 
             # wall prelim checks
@@ -50,7 +52,7 @@ def full_wall_design(walls:list[dict], load_cases:list[str], vcts:list[float], h
             wall['Slenderness Ratio'] = slenderness_ratio(tw, hw, mu_sp) # check slenderness ratio
 
             # wall reinforcement
-            wall['Rho crit.'], wall['Rho typ.'] = min_tension_reinforcement(fc, wall['story_name'], story_names, phz_levels) # minimum reo
+            wall['Rho crit.'], wall['Rho typ.'] = min_tension_reinforcement(fc, wall['Story Name'], story_names, phz_levels) # minimum reo
             wall['db Vert'], wall['s Vert'] = tension_reinforcement(tw, Lw, wall['G+0.3Q-RS (T)(MPa)'], wall['Rho crit.'], wall['Rho typ.'], vcts, 500)
 
             # boundary element
@@ -61,7 +63,7 @@ def full_wall_design(walls:list[dict], load_cases:list[str], vcts:list[float], h
 
             # shear reinforcement
             eq_shear = load_factors.EQShear(v2_g, v2_q, v2_rs)
-            wall['EQ Shear'] = adjusted_eq_shear(wall['story_name'], mu_sp, eq_shear, phz_levels)
+            wall['EQ Shear'] = adjusted_eq_shear(wall['Story Name'], mu_sp, eq_shear, phz_levels)
             wall['Vuc'], wall['Vus'], wall['phiVu'], wall['db Horiz'], wall['s Horiz'] = shear_design(tw, Lw, hw, fc, hcts, 500, wall['EQ Shear'])
 
             piers_as_walls.append(wall)
@@ -79,12 +81,12 @@ def optimise_walls(walls:list[dict], stress_limit:float, load_cases:list[str], m
     
     for wall in walls:
         current_wall = copy.deepcopy(wall)
-        wall_tw = current_wall['thickness_bot']
+        wall_tw = current_wall['Thickness Bot']
         tw_index = tw_range.index(round(wall_tw,0))
         wall_fc = current_wall['fc']
         fc_index = fc_range.index(round(wall_fc, 0))
-        wall_Lw = current_wall['width_bot']
-        wall_hw = current_wall['story_height']
+        wall_Lw = current_wall['Width Bot']
+        wall_hw = current_wall['Story Height']
         p_g = current_wall[g]['p']
         p_q = current_wall[q]['p']
         p_rs = current_wall[rs]['p']
@@ -140,11 +142,11 @@ def piers_as_walls_dataframe(walls:list[dict]) -> pd.DataFrame:
     :type styled_df: pd.Dataframe
     '''
     selected_keys = [
-            'pier_name',
-            'story_name',
-            'story_height',
-            'thickness_bot',
-            'width_bot',
+            'Pier Name',
+            'Story Name',
+            'Story Height',
+            'Thickness Bot',
+            'Width Bot',
             'fc',
             'G+0.3Q (MPa)',
             'G+0.3Q+RS (C)(MPa)',
@@ -181,7 +183,7 @@ def piers_as_walls_dataframe(walls:list[dict]) -> pd.DataFrame:
     def apply_style(df, color_mapping):
         styled_df = df.style
         for col in ['Axial Load Ratio', 'Slenderness Ratio']:
-            styled_df = styled_df.applymap(lambda x, col=col: highlight_cells(x, col, color_mapping), subset=[col])
+            styled_df = styled_df.map(lambda x, col=col: highlight_cells(x, col, color_mapping), subset=[col])
         return styled_df
 
     styled_df = apply_style(df, color_mapping)
@@ -189,13 +191,26 @@ def piers_as_walls_dataframe(walls:list[dict]) -> pd.DataFrame:
     return styled_df
 
 
-# -------------------------------------------------------------------------------------------------------------
-# WALL INDIVIDUAL FUNCTIONS
-# -------------------------------------------------------------------------------------------------------------
+'''
+Wall design individual functions
+
+'''
 
 
-# determine levels within and outside PHZ
-def get_phz_stories(start_phz:str, above_phz:int, story_names: list) -> list:
+def get_phz_stories(start_phz:str, above_phz:int, story_names: list[str]) -> list[str]:
+    ''' Determine levels within and outside PHZ
+    
+    :param start_phz: lowest level within plastic hinge region
+    :param above_phz: number of levels within plastic hinge region above lowest story
+    :param story_names: list off all story names in building
+
+    :type start_phz: str
+    :type above_phz: int
+    :type story_names: list[str]
+
+    :return phz_list: list of story names within plastic hinge regions
+    :type phz_list: list[str]
+    '''
     story_names.reverse()
     phz_list = []
     index = story_names.index(start_phz)
@@ -206,25 +221,62 @@ def get_phz_stories(start_phz:str, above_phz:int, story_names: list) -> list:
             break
     return phz_list
 
-def is_in_phz(story:str, phz_stories: list) -> list:
-    if story in phz_stories:
-        return "Witin PHZ"
-    else:
-        return "Outisde PHZ"
+def is_in_phz(story:str, phz_stories: list) -> bool:
+    ''' Determines whether a story is within the plastic hinge region
 
-# ACI Table R18.10.1 - Governing design provisions for vertical wall segments
-def design_as(tw:float, Lw:float, hw:float):
-    if hw / Lw < 2:
-        return "Design as wall"
-    elif hw / Lw >= 2 and Lw / tw <= 6:
-        return "Design as column"
+    :param story: story to be checked if within plastic hinge region
+    :param phz_stories: list of stories within plastic hinge region
+
+    :type story: str
+    :type phz_stories: list[str]
+
+    :return in_phz: returns True or False whether story is within plastic hinge region
+    :type in_phz: bool
+    '''
+
+    if story in phz_stories:
+        in_phz = True
     else:
-        return "Design as wall"
+        in_phz = False
+    return in_phz
+
+
+def design_as(tw:float, Lw:float, hw:float):
+    ''' Determines whether a pier should be designed as a wall or a column.
+    Check with: 
+    ACI Table R18.10.1 - Governing design provisions for vertical wall segments
     
-# C14.4.4.3 - Axial load ratio
+    :param tw: thickness of pier
+    :param Lw: length of pier
+    :param hw: floor to floor height of pier
+
+    :type tw: float
+    :type Lw: float
+    :type hw: float
+    
+    '''
+    if hw / Lw < 2:
+        design_as = "Design as wall"
+    elif hw / Lw >= 2 and Lw / tw <= 6:
+        design_as =  "Design as column"
+    else:
+        design_as =  "Design as wall"
+    return design_as
+    
+
 def axial_load_ratio(tw:float, Lw:float, eq_load:float) -> str:
-    # only if muSp 2.6 or 4.5
-    # eq_load must be G + 0.3Q
+    ''' Checks axial load ratio requirement. Only applied to ductile walls.
+    AS3600:2018 - Cl 14.4.4.3 - Axial load ratio
+    
+    :param tw: thickness of pier
+    :param Lw: length of pier
+    :param eq_load: earthquake mass - G+0.3Q (kN)
+
+    :type tw: float
+    :type Lw: float
+    :type eq_load: float
+
+    '''
     Ag = tw * Lw
     if eq_load*1000/Ag < 0.2:
         return "<0.2, OK"
