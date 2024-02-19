@@ -87,7 +87,7 @@ with setup_col:
     if get_load_cases_button:
         if etabsAPI:
             st.session_state.load_cases = etabsAPI.get_load_cases()
-            st.session_state.story_names = etabsAPI.get_story_names()
+            st.session_state.story_names = etabsAPI.story_names
         else:
             st.error("No ETABS model detected. Please open an ETABS model.")
 
