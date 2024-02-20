@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import streamlit as st
+import xlsxwriter
 import sys
 sys.path.append(r"C:\_Github\structural_engineering_toolbox")
 from modules import as3600_wall_design, etabs_api
@@ -94,9 +95,7 @@ with setup_col:
     g = st.selectbox(label="Dead Load", options=st.session_state.load_cases, key='g')
     q = st.selectbox(label="Live Load", options=st.session_state.load_cases, key='q')
     rs = st.selectbox(label="Response Spectrum", options=st.session_state.load_cases, key='rs')
-    wx = st.selectbox(label="Wind X", options=st.session_state.load_cases, key='wx')
-    wy = st.selectbox(label="Wind Y", options=st.session_state.load_cases, key='wy')
-    st.session_state.selected_load_cases = [st.session_state.g, st.session_state.q, st.session_state.rs, st.session_state.wx, st.session_state.wy,]
+    st.session_state.selected_load_cases = [st.session_state.g, st.session_state.q, st.session_state.rs]
 
     wall_type = st.radio(label="Wall type", options=["In-situ", "Precast"], key='wall_type')
     st.write("<style>div.row-widget.stRadio>div{flex-direction:row;}</style",unsafe_allow_html=True,)
@@ -112,6 +111,27 @@ with setup_col:
     v_cts_max = st.selectbox(label="Max vert. bar spacing", options=[150, 200, 250, 300, 400], index=3)
     v_cts_min = st.selectbox(label="Min vert. bar spacing", options=[150, 200, 250, 300, 400], index=1)
     st.session_state.v_cts = [v_cts_max, v_cts_min]
+
+    export_xlsx_button = st.button(label='Export XLSX')
+    if export_xlsx_button:
+        writer = pd.ExcelWriter('pandas_simple.xlsx', engine='xlsxwriter')
+        st.session_state.walls_df.to_excel(writer, sheet_name="Wall Design")
+        
+        workbook  = writer.book
+        worksheet = writer.sheets['Wall Design']
+        header_format = workbook.add_format({
+            'bold': True,
+            'text_wrap': False,
+            'valign': 'center',
+            'fg_color': '#D7E4BC',
+            'border': 1
+            })
+        
+        for col_num, value in enumerate(st.session_state.walls_df.columns.values):
+            worksheet.write(0, col_num + 1, value, header_format)
+
+        writer.close()
+
 
 # -------------------------------------------------------------------------------------------------------------------
 # SET UP COLUMN 2 - CONTAINS TABS WITH RESULTS

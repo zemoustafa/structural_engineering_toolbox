@@ -452,5 +452,14 @@ class etabs_api:
         return result
 
 
-    def set_wall_modifiers():
+    def set_stories(self, story_names:list[str], story_elevations:list[float]):
+        pass
+
+    def draw_floors_by_points():
+        pass
+
+    def draw_walls_by_points():
+        pass
+
+    def draw_column():
         pass
