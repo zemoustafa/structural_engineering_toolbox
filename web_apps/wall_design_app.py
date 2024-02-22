@@ -113,6 +113,8 @@ with setup_col:
     st.session_state.v_cts = [v_cts_max, v_cts_min]
 
     export_xlsx_button = st.button(label='Export XLSX')
+
+    # EXPORT XLSX - ADD TO FUNCTION LATER
     if export_xlsx_button:
         writer = pd.ExcelWriter('pandas_simple.xlsx', engine='xlsxwriter')
         st.session_state.walls_df.to_excel(writer, sheet_name="Wall Design")
@@ -123,12 +125,50 @@ with setup_col:
             'bold': True,
             'text_wrap': False,
             'valign': 'center',
-            'fg_color': '#D7E4BC',
+            'fg_color': '#0E70A6',
             'border': 1
             })
         
         for col_num, value in enumerate(st.session_state.walls_df.columns.values):
             worksheet.write(0, col_num + 1, value, header_format)
+
+        compression_format = worksheet.conditional_format('I1:I1048576', options={
+            'type': '3_color_scale',
+            'min_color': '#8EE80E',
+            'mid_color': '#FFF400',
+            'max_color': '#D61600'
+            }
+            )
+        
+        tension_format = worksheet.conditional_format('J1:J1048576', options={
+            'type': '3_color_scale',
+            'min_color': '#D61600',
+            'mid_color': '#FFF400',
+            'max_color': '#8EE80E'
+            }
+            )
+        
+        # Add a format. Light red fill with dark red text.
+        format1 = workbook.add_format({"bg_color": "#FF4000"})
+
+        # Add a format. Green fill with dark green text.
+        format2 = workbook.add_format({"bg_color": "#8EE80E"})
+
+        be_format_pass = worksheet.conditional_format('Q2:S1048576', options={
+            'type': 'cell',
+            'criteria': '>=',
+            'value': '$I$2:$I$1048576',
+            'format': format2
+        })
+
+        be_format_fail = worksheet.conditional_format('Q2:S1048576', options={
+            'type': 'cell',
+            'criteria': '<',
+            'value': '$I$2:$I$1048576',
+            'format': format1
+        })
+
+
 
         writer.close()
 
