@@ -388,7 +388,8 @@ def shear_design(tw:float, Lw:float, hw:float, fc:float, hcts:list[float], fsy:f
         Vuc = Vuc1
     else:
         Vuc2 = min(Vuc1,(0.05 * np.sqrt(fc) + (0.1 * np.sqrt(fc)) / (hw / Lw - 1)) * 0.8 * Lw * tw)/1000
-        Vuc = max(Vuc2, 0.17 * np.sqrt(fc) * 0.8 * Lw * tw)
+        Vuc3 = (0.17 * np.sqrt(fc) * 0.8 * Lw * tw) / 1000
+        Vuc = max(Vuc2, Vuc3)
 
     # Clause 11.6.4 - Contribution to shear strength by wall reinforcement
     
