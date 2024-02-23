@@ -25,8 +25,8 @@ class etabs_api:
         self.pier_section_properties = self.get_pier_section_properties()
         self.concrete_material_properties = self.get_concrete_material_properties()
         self.load_cases = self.get_load_cases()
-        self.story_names = self.get_story_names()
         self.story_data = self.get_story_data()
+        self.story_names = [story_data["Story Name"] for story_data in self.story_data]
 
     def get_piers(self, load_cases: list) -> list[dict]:
         """ Get wall/pier property assignments and pier forces for selected load cases
@@ -89,17 +89,6 @@ class etabs_api:
                     }
                     pier_force_list.append(pier_force_dict)
         return pier_force_list
-
-    def get_story_names(self) -> list[str]:
-        """ Get list of story names
-
-        :return story_names: list of story names defined in model
-        """
-        story_names = []
-        name_list = self.sap_model.Story.GetNameList()[1]
-        for name in name_list:
-            story_names.append(name)
-        return story_names
 
     def get_story_data(self) -> list[dict]:
         """ Get list of story names, elevations and heights
@@ -390,6 +379,7 @@ class etabs_api:
         
         """
 
+
         pass
 
     def create_concrete_column_property(self, width:float, depth:float, bars_x:int, bars_y:int, db:int, material:str, reo_mat:str) -> int:
@@ -462,5 +452,14 @@ class etabs_api:
         return result
 
 
-    def set_wall_modifiers():
+    def set_stories(self, story_names:list[str], story_elevations:list[float]):
+        pass
+
+    def draw_floors_by_points():
+        pass
+
+    def draw_walls_by_points():
+        pass
+
+    def draw_column():
         pass
