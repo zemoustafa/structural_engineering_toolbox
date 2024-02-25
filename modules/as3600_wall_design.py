@@ -8,7 +8,7 @@ import copy
 '''
 Wall overall design functions
 
-These functions will be used to design many walls at once, where each wall is represented in a dict
+These functions will be used to design many walls at once, where each wall is represented as a dict
 
 '''
 # DESIGN ALL WALLS
@@ -70,8 +70,22 @@ def full_wall_design(walls:list[dict], load_cases:list[str], vcts:list[float], h
     
     return piers_as_walls
 
-# OPTIMISE WALLS
 def optimise_walls(walls:list[dict], stress_limit:float, load_cases:list[str], mu_sp:float) -> list[dict]:
+    ''' Optimise wall design based on parameters
+
+    :param walls: original wall design dataframe
+    :param stress_limit: maximum allowable compressive stress
+    :param load_case: load case names to design for
+    :param mu_sp: ductility factor of building
+
+    :type walls: list[dict]
+    :type stress_limit: float
+    :type load_case: list[str]
+    :type mu_sp: float
+
+    :return optimised_walls: pier dataframe with optimised design
+    
+    '''
     optimised_walls = []
     fc_range = [32, 40, 50, 65]
     tw_range = [200, 250, 300, 350]
@@ -131,73 +145,13 @@ def pier_as_columns(walls:list[dict], load_cases:list[str]) -> list[dict]:
             wall['M-RS'] = wall[rs]['m3']
 
     return piers_as_columns
-    
-def piers_as_walls_dataframe(walls:list[dict]) -> pd.DataFrame:
-    ''' Create styled dataframe containing wall design.
-
-    :param walls: list of dicts containing designed walls. must have run full_wall_design() function.
-    :type walls: list[dicts]
-
-    :return styled_df: styled dataframe containing wall design 
-    :type styled_df: pd.Dataframe
-    '''
-    selected_keys = [
-            'Pier Name',
-            'Story Name',
-            'Story Height',
-            'Thickness Bot',
-            'Width Bot',
-            'fc',
-            'G+0.3Q (MPa)',
-            'G+0.3Q+RS (C)(MPa)',
-            'G+0.3Q-RS (T)(MPa)',
-            'Axial Load Ratio',
-            'Slenderness Ratio',
-            'Rho crit.',
-            'Rho typ.',
-            'db Vert',
-            's Vert',
-            "0.15f'c",
-            "0.2f'c",
-            "0.585f'c",
-            'BE Width',
-            'Lig Dia',
-            'Lig Cts',
-            'EQ Shear',
-            'Vuc',
-            'Vus',
-            'phiVu',
-            'db Horiz',
-            's Horiz'
-            ]
-    df = pd.DataFrame([{key: wall[key] for key in selected_keys} for wall in walls])
-
-    color_mapping = {
-    'Axial Load Ratio': {"<0.2, OK": 'green', "Increase f'c or wall thickness": 'red'},
-    'Slenderness Ratio': {"<20, OK": 'green', "Slender wall. Increase thickness": 'red'}
-        }
-
-    def highlight_cells(val, col, color_mapping):
-        return f'background-color: {color_mapping.get(col, {}).get(val, "white")}'
-
-    def apply_style(df, color_mapping):
-        styled_df = df.style
-        for col in ['Axial Load Ratio', 'Slenderness Ratio']:
-            styled_df = styled_df.map(lambda x, col=col: highlight_cells(x, col, color_mapping), subset=[col])
-        return styled_df
-
-    styled_df = apply_style(df, color_mapping)
-    
-    return styled_df
-
 
 '''
 Wall design individual functions
 
 '''
 
-
-def get_phz_stories(start_phz:str, above_phz:int, story_names: list[str]) -> list[str]:
+def get_phz_stories(start_phz:str, above_phz:int, story_names:list[str]) -> list[str]:
     ''' Determine levels within and outside PHZ
     
     :param start_phz: lowest level within plastic hinge region
@@ -211,7 +165,6 @@ def get_phz_stories(start_phz:str, above_phz:int, story_names: list[str]) -> lis
     :return phz_list: list of story names within plastic hinge regions
     :type phz_list: list[str]
     '''
-    story_names.reverse()
     phz_list = []
     index = story_names.index(start_phz)
     for story in story_names:
@@ -303,8 +256,8 @@ def slenderness_ratio(tw:float, hw:float, muSp) -> str:
 # MINIMUM TENSION REINFORCEMENT WITHIN PLASTIC HINGE ZONE
 def min_tension_reinforcement(fc:float, story:str, story_names:list, phz_levels:list):
     fsy = 500
-    rho_wv_crit = (0.7 * np.power(fc, 0.5) / fsy)  # minimum vertical reinforcement ratio
-    rho_wv_typ = (0.35 * np.power(fc, 0.5) / fsy)
+    rho_wv_crit = (0.7 * fc**0.5) / fsy  # minimum vertical reinforcement ratio
+    rho_wv_typ = (0.35 * fc**0.5) / fsy
 
     if story not in phz_levels:
         current_story_index = story_names.index(story)

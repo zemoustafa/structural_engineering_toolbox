@@ -50,6 +50,7 @@ class etabs_api:
                 if (
                     section_property["Story Name"] == pier_force["Story Name"]
                     and section_property["Pier Name"] == pier_force["Pier Name"]
+                    and pier_force["Location"] == "Bottom"
                 ):
                     section_property[pier_force["Load Case"]] = pier_force
 
@@ -73,21 +74,19 @@ class etabs_api:
             pier_force = self.sap_model.Results.PierForce()
             number_results = pier_force[0]
             for i in range(number_results):
-                location = pier_force[4][i]
-                if location == "Bottom":
-                    pier_force_dict = {
-                        "Story Name": pier_force[1][i],
-                        "Pier Name": pier_force[2][i],
-                        "Load Case": pier_force[3][i],
-                        "Location": pier_force[4][i],
-                        "p": pier_force[5][i],
-                        "v2": pier_force[6][i],
-                        "v3": pier_force[7][i],
-                        "t": pier_force[8][i],
-                        "m2": pier_force[9][i],
-                        "m3": pier_force[10][i],
-                    }
-                    pier_force_list.append(pier_force_dict)
+                pier_force_dict = {
+                    "Story Name": pier_force[1][i],
+                    "Pier Name": pier_force[2][i],
+                    "Load Case": pier_force[3][i],
+                    "Location": pier_force[4][i],
+                    "p": pier_force[5][i],
+                    "v2": pier_force[6][i],
+                    "v3": pier_force[7][i],
+                    "t": pier_force[8][i],
+                    "m2": pier_force[9][i],
+                    "m3": pier_force[10][i],
+                }
+                pier_force_list.append(pier_force_dict)
         return pier_force_list
 
     def get_story_data(self) -> list[dict]:

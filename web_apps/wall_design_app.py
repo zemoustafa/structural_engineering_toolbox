@@ -4,7 +4,7 @@ import streamlit as st
 import xlsxwriter
 import sys
 sys.path.append(r"C:\_Github\structural_engineering_toolbox")
-from modules import as3600_wall_design, etabs_api
+from modules import as3600_wall_design, etabs_api, design_reports
 
 # -------------------------------------------------------------------------------------------------------------------
 # SET UP PAGE
@@ -21,7 +21,6 @@ st.title(body="ETABS Wall Design Tool")
 # SET UP CONTAINERS
 # create container that holds all items
 setup_col, results_col = st.columns([1, 4])
-
 # -------------------------------------------------------------------------------------------------------------------
 # SET UP BUTTON SESSION STATES
 
@@ -39,6 +38,9 @@ if "h_cts" not in st.session_state:
 
 if "phz_levels" not in st.session_state:
     st.session_state.phz_levels = []
+
+if "story_data" not in st.session_state:
+    st.session_state.story_data = []
 
 if "story_names" not in st.session_state:
     st.session_state.story_names = []
@@ -60,6 +62,10 @@ if "columns_df" not in st.session_state:
 
 if 'index' not in st.session_state:
     st.session_state.index = 0
+
+if 'pier_forces' not in st.session_state:
+    st.session_state.pier_forces = []
+    
 # -------------------------------------------------------------------------------------------------------------------
 # SET UP MAIN CONTAINER
 
@@ -69,58 +75,82 @@ etabsAPI = etabs_api.etabs_api()
 # SET UP COLUMN 1 - CONTAINS SET UP
 with setup_col:
     # add buttons
-    buttonCol1, buttonCol2 = st.columns([0.5, 0.5])
-    with buttonCol1:
-        get_load_cases_button = st.button(
-            label="Get Load Cases", 
-            help="Make sure the model is open"
-            )
-    with buttonCol2:
-        get_pier_forces_button = st.button(
-            "Get Pier Forces",
-            help="Please make sure your ETABS model is correct, all piers labels have been assigned and the model has been run.",
+    get_load_cases_button = st.button(
+        label="Get Load Cases", 
+        help="Make sure the model is open",
+        use_container_width=True
         )
-
-    # label - select load case names
-    st.info("Select names of load cases from ETABS model.")
 
     # once button clicked, make visible the selectboxes to select case names
     if get_load_cases_button:
         if etabsAPI:
             st.session_state.load_cases = etabsAPI.get_load_cases()
+            st.session_state.story_data = etabsAPI.get_story_data()
             st.session_state.story_names = etabsAPI.story_names
+            
         else:
             st.error("No ETABS model detected. Please open an ETABS model.")
 
-    g = st.selectbox(label="Dead Load", options=st.session_state.load_cases, key='g')
-    q = st.selectbox(label="Live Load", options=st.session_state.load_cases, key='q')
-    rs = st.selectbox(label="Response Spectrum", options=st.session_state.load_cases, key='rs')
-    st.session_state.selected_load_cases = [st.session_state.g, st.session_state.q, st.session_state.rs]
+    form = st.form('input_form')
+    with form:
+        form.g = st.selectbox(label="Dead Load", options=st.session_state.load_cases)
+        form.q = st.selectbox(label="Live Load", options=st.session_state.load_cases)
+        form.rs = st.selectbox(label="Response Spectrum", options=st.session_state.load_cases)
+        form.wall_type = st.radio(label="Wall type", options=["In-situ", "Precast"])
+        st.write("<style>div.row-widget.stRadio>div{flex-direction:row;}</style",unsafe_allow_html=True,)
+        form.mu_sp = st.selectbox(label="Ductility factor", options=[1.3, 2.6, 4.5], index=1)
 
-    wall_type = st.radio(label="Wall type", options=["In-situ", "Precast"], key='wall_type')
-    st.write("<style>div.row-widget.stRadio>div{flex-direction:row;}</style",unsafe_allow_html=True,)
-    mu_sp = st.selectbox(label="Ductility factor", options=[1.3, 2.6, 4.5], index=1, key='mu_sp')
-
-    start_phz = st.selectbox(label="Start of plastic hinge zone", options=st.session_state.story_names, key='start_phz')
-    num_phz_levels = st.number_input(label="Number of levels within PHZ", step=1, key='num_phz_levels')
-    
-    h_cts_max = st.selectbox(label="Max horiz. bar spacing", options=[150, 200, 250, 300, 400], index=3)
-    h_cts_min = st.selectbox(label="Min horiz. bar spacing", options=[150, 200, 250, 300, 400], index=1)
-    st.session_state.h_cts = [h_cts_max, h_cts_min]
-
-    v_cts_max = st.selectbox(label="Max vert. bar spacing", options=[150, 200, 250, 300, 400], index=3)
-    v_cts_min = st.selectbox(label="Min vert. bar spacing", options=[150, 200, 250, 300, 400], index=1)
-    st.session_state.v_cts = [v_cts_max, v_cts_min]
-
-    export_xlsx_button = st.button(label='Export XLSX')
-
-    # EXPORT XLSX - ADD TO FUNCTION LATER
-    if export_xlsx_button:
-        writer = pd.ExcelWriter('pandas_simple.xlsx', engine='xlsxwriter')
-        st.session_state.walls_df.to_excel(writer, sheet_name="Wall Design")
+        form.start_phz = st.selectbox(label="Start of plastic hinge zone", options=st.session_state.story_names)
+        form.num_phz_levels = st.number_input(label="Number of levels within PHZ", step=1)
         
+        form.h_cts_max = st.selectbox(label="Max horiz. bar spacing", options=[150, 200, 250, 300, 400], index=3)
+        form.h_cts_min = st.selectbox(label="Min horiz. bar spacing", options=[150, 200, 250, 300, 400], index=1)
+        
+        form.v_cts_max = st.selectbox(label="Max vert. bar spacing", options=[150, 200, 250, 300, 400], index=3)
+        form.v_cts_min = st.selectbox(label="Min vert. bar spacing", options=[150, 200, 250, 300, 400], index=1)
+        
+        # form submit button
+        submit_button = form.form_submit_button('Get pier forces', use_container_width=True)
+
+    st.session_state.selected_load_cases = [form.g, form.q, form.rs]
+    st.session_state.h_cts = [form.h_cts_max, form.h_cts_min]
+    st.session_state.v_cts = [form.v_cts_max, form.v_cts_min]
+    
+    if submit_button:
+        del st.session_state.pier_forces[:]
+        for case in st.session_state.selected_load_cases:        
+            st.session_state.pier_forces.append(etabsAPI.get_pier_forces(case))
+        st.session_state.phz_levels = as3600_wall_design.get_phz_stories(form.start_phz, form.num_phz_levels, st.session_state.story_names)
+        st.session_state.walls_dicts = etabsAPI.get_piers(st.session_state.selected_load_cases)  
+        piers_as_walls = as3600_wall_design.full_wall_design(
+                    st.session_state.walls_dicts, 
+                    st.session_state.selected_load_cases,
+                    st.session_state.v_cts,
+                    st.session_state.h_cts,
+                    st.session_state.story_names,
+                    st.session_state.phz_levels,
+                    form.wall_type,
+                    form.mu_sp
+                    )
+        st.session_state.walls_df = design_reports.piers_as_walls_dataframe(piers_as_walls)
+
+    export_xlsx_button = st.button(label='Export XLSX', use_container_width=True)
+
+    # EXPORT XLSX - ADD TO FUNCTION LATER 
+    if export_xlsx_button:
+        # get number of rows of table
+        df_shape = st.session_state.walls_df.shape
+        num_rows = str(df_shape[0]+1)
+
+        # create wrtier object
+        writer = pd.ExcelWriter('pandas_simple.xlsx', engine='xlsxwriter')
         workbook  = writer.book
-        worksheet = writer.sheets['Wall Design']
+
+        # create worksheet1 from dataframe
+        st.session_state.walls_df.to_excel(writer, sheet_name="Wall Design")
+        worksheet1 = writer.sheets['Wall Design']        
+        
+        # create format for column titles
         header_format = workbook.add_format({
             'bold': True,
             'text_wrap': False,
@@ -129,10 +159,12 @@ with setup_col:
             'border': 1
             })
         
+        # add format to columns in worksheet11
         for col_num, value in enumerate(st.session_state.walls_df.columns.values):
-            worksheet.write(0, col_num + 1, value, header_format)
+            worksheet1.write(0, col_num + 1, value, header_format)
 
-        compression_format = worksheet.conditional_format('I1:I1048576', options={
+        # add conditional format to G+0.3Q+RS column
+        compression_format = worksheet1.conditional_format('I1:I'+num_rows, options={
             'type': '3_color_scale',
             'min_color': '#8EE80E',
             'mid_color': '#FFF400',
@@ -140,7 +172,8 @@ with setup_col:
             }
             )
         
-        tension_format = worksheet.conditional_format('J1:J1048576', options={
+        # add conditional format to G+0.3Q-RS column
+        tension_format = worksheet1.conditional_format('J1:J'+num_rows, options={
             'type': '3_color_scale',
             'min_color': '#D61600',
             'mid_color': '#FFF400',
@@ -148,28 +181,26 @@ with setup_col:
             }
             )
         
-        # Add a format. Light red fill with dark red text.
-        format1 = workbook.add_format({"bg_color": "#FF4000"})
-
-        # Add a format. Green fill with dark green text.
-        format2 = workbook.add_format({"bg_color": "#8EE80E"})
-
-        be_format_pass = worksheet.conditional_format('Q2:S1048576', options={
+        # create and add formats for boundary elements
+        format1 = workbook.add_format({"bg_color": "#FF4000"}) # red
+        format2 = workbook.add_format({"bg_color": "#8EE80E"}) # green
+        be_format_pass = worksheet1.conditional_format('Q2:S'+num_rows, options={
             'type': 'cell',
             'criteria': '>=',
             'value': '$I$2:$I$1048576',
             'format': format2
         })
-
-        be_format_fail = worksheet.conditional_format('Q2:S1048576', options={
+        be_format_fail = worksheet1.conditional_format('Q2:S'+num_rows, options={
             'type': 'cell',
             'criteria': '<',
             'value': '$I$2:$I$1048576',
             'format': format1
         })
 
+        # autofit column widths
+        worksheet1.autofit()
 
-
+        # export xlsx file
         writer.close()
 
 
@@ -179,63 +210,45 @@ with results_col:
     # set up results tabs and start page tabs
     wall_tab, column_tab = st.tabs(["Piers as walls", "Piers as columns"])
 
-    piers_as_columns = []
     
-    if get_pier_forces_button:
-
-        st.session_state.phz_levels = as3600_wall_design.get_phz_stories(st.session_state.start_phz, st.session_state.num_phz_levels, st.session_state.story_names)
-        
-        st.session_state.walls_dicts = etabsAPI.get_piers(st.session_state.selected_load_cases)
-        
-        piers_as_walls = as3600_wall_design.full_wall_design(
-                    st.session_state.walls_dicts, 
-                    st.session_state.selected_load_cases,
-                    st.session_state.v_cts,
-                    st.session_state.h_cts,
-                    st.session_state.story_names,
-                    st.session_state.phz_levels,
-                    st.session_state.wall_type,
-                    st.session_state.mu_sp
-                    )
-        
-        st.session_state.walls_df = as3600_wall_design.piers_as_walls_dataframe(piers_as_walls)
        
     # -------------------------------------------------------------------------------------------------------------------
     with wall_tab:
-        wall_options_col, wall_df_col = st.columns([1, 4])
+        st.dataframe(st.session_state.walls_df, use_container_width=True, height=1000)
+        # wall_options_col, wall_df_col = st.columns([1, 4])
 
-        with wall_options_col:
-            st.subheader("Optimise walls")
-            st.text_input(label="Max. % of f'c", value='0.2', key='max_fc')
-            optimise_button = st.button('Optimise walls')
-            show_optimised_walls_checkbox = st.checkbox(label='Show optimised walls', key='optimised_walls_checkbox')
-            if optimise_button:
-                stress_limit = float(st.session_state.max_fc)
-                st.session_state.optimised_walls_dicts = as3600_wall_design.optimise_walls(
-                    st.session_state.walls_dicts, 
-                    stress_limit, 
-                    st.session_state.selected_load_cases, 
-                    st.session_state.mu_sp
-                    )
-                st.session_state.optimised_walls_redesigned = as3600_wall_design.full_as3600_wall_design(
-                    st.session_state.optimised_walls_dicts, 
-                    st.session_state.selected_load_cases,
-                    st.session_state.v_cts,
-                    st.session_state.h_cts,
-                    st.session_state.story_names,
-                    st.session_state.phz_levels,
-                    st.session_state.wall_type,
-                    st.session_state.mu_sp
-                    )
-                st.session_state.optimised_walls_df = as3600_wall_design.piers_as_walls_daframe(st.session_state.optimised_walls_redesigned)
+        # with wall_options_col:
+        #     st.subheader("Optimise walls")
+        #     st.text_input(label="Max. % of f'c", value='0.2', key='max_fc')
+        #     optimise_button = st.button('Optimise walls')
+        #     show_optimised_walls_checkbox = st.checkbox(label='Show optimised walls', key='optimised_walls_checkbox')
+        #     if optimise_button:
+        #         stress_limit = float(st.session_state.max_fc)
+        #         st.session_state.optimised_walls_dicts = as3600_wall_design.optimise_walls(
+        #             st.session_state.walls_dicts, 
+        #             stress_limit, 
+        #             st.session_state.selected_load_cases, 
+        #             st.session_state.mu_sp
+        #             )
+        #         st.session_state.optimised_walls_redesigned = as3600_wall_design.full_as3600_wall_design(
+        #             st.session_state.optimised_walls_dicts, 
+        #             st.session_state.selected_load_cases,
+        #             st.session_state.v_cts,
+        #             st.session_state.h_cts,
+        #             st.session_state.story_names,
+        #             st.session_state.phz_levels,
+        #             st.session_state.wall_type,
+        #             st.session_state.mu_sp
+        #             )
+        #         st.session_state.optimised_walls_df = as3600_wall_design.piers_as_walls_daframe(st.session_state.optimised_walls_redesigned)
 
-            update_etabs_button = st.button(label='Update ETABS Model')
+        #     update_etabs_button = st.button(label='Update ETABS Model')
 
-        with wall_df_col:
-            if show_optimised_walls_checkbox:
-                st.dataframe(st.session_state.optimised_walls_df, use_container_width=True, height=1000)
-            else:
-                st.dataframe(st.session_state.walls_df, use_container_width=True, height=1000)
+        # with wall_df_col:
+        #     if show_optimised_walls_checkbox:
+        #         st.dataframe(st.session_state.optimised_walls_df, use_container_width=True, height=1000)
+        #     else:
+        #         st.dataframe(st.session_state.walls_df, use_container_width=True, height=1000)
 
         
     # -------------------------------------------------------------------------------------------------------------------
@@ -244,3 +257,24 @@ with results_col:
         
 
         
+
+
+# SIDEBAR TO DEBUG APP
+with st.sidebar:
+    st.write("Selected load cases")
+    st.session_state.selected_load_cases
+    st.write(len(st.session_state.selected_load_cases))
+
+    st.write("Pier forces list")
+    st.session_state.pier_forces
+
+    st.write('Story names')
+    st.session_state.story_names
+
+    st.write('Start PHZ')
+    st.write(form.start_phz)
+
+    st.write('Stories within PHZ')
+    st.session_state.phz_levels
+
+    
