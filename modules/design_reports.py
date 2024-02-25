@@ -8,6 +8,67 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
+
+'''
+DATAFRAMES
+
+'''
+def piers_as_walls_dataframe(walls:list[dict]) -> pd.DataFrame:
+    ''' Create dataframe containing wall design.
+
+    :param walls: list of dicts containing designed walls. must have run full_wall_design() function.
+    :type walls: list[dicts]
+
+    :return styled_df: styled dataframe containing wall design 
+    :type df: pd.Dataframe
+    '''
+    selected_keys = [
+            'Pier Name',
+            'Story Name',
+            'Story Height',
+            'Thickness Bot',
+            'Width Bot',
+            'fc',
+            'G+0.3Q (MPa)',
+            'G+0.3Q+RS (C)(MPa)',
+            'G+0.3Q-RS (T)(MPa)',
+            'Axial Load Ratio',
+            'Slenderness Ratio',
+            'Rho crit.',
+            'Rho typ.',
+            'db Vert',
+            's Vert',
+            "0.15f'c",
+            "0.2f'c",
+            "0.585f'c",
+            'BE Width',
+            'Lig Dia',
+            'Lig Cts',
+            'EQ Shear',
+            'Vuc',
+            'Vus',
+            'phiVu',
+            'db Horiz',
+            's Horiz'
+            ]
+    df = pd.DataFrame([{key: wall[key] for key in selected_keys} for wall in walls])
+
+    return df
+
+def pier_forces(pier_forces:list[dict]) -> pd.DataFrame:
+    '''
+    
+    '''
+    
+
+    
+    pass
+
+'''
+FIGURES
+
+'''
+
 def plot_loading_plans(floor_objs:list[dict], wall_objs:list[dict]) -> dict:
     """ Plot
 
