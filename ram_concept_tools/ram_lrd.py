@@ -11,18 +11,6 @@ from ram_concept.result_layers import ReactionContext
 from ram_concept.point_2D import Point2D
 from ram_concept.line_segment_2D import LineSegment2D
 
-file_path_list = [
-    r"M:\2023\WD23070 - GLM2 Prahran\Computations\RAM Concept\Building A Roof.cpt",
-    r"M:\2023\WD23070 - GLM2 Prahran\Computations\RAM Concept\Building A Level 8.cpt",
-    r"M:\2023\WD23070 - GLM2 Prahran\Computations\RAM Concept\Building A Level 7.cpt",
-    r"M:\2023\WD23070 - GLM2 Prahran\Computations\RAM Concept\Building A Level 6.cpt",
-    r"M:\2023\WD23070 - GLM2 Prahran\Computations\RAM Concept\Building A Level 5.cpt",
-    r"M:\2023\WD23070 - GLM2 Prahran\Computations\RAM Concept\Building A Level 4.cpt",
-    r"M:\2023\WD23070 - GLM2 Prahran\Computations\RAM Concept\Building A Level 3.cpt",
-    r"M:\2023\WD23070 - GLM2 Prahran\Computations\RAM Concept\Building A Level 2.cpt",
-    r"M:\2023\WD23070 - GLM2 Prahran\Computations\RAM Concept\Building A Level 1.cpt"
-]
-
 def full_load_rundown(file_path_list):
     for i in range(len(file_path_list) - 1):
         delete_exisitng_loads(file_path_list[i + 1])
@@ -144,18 +132,14 @@ def ram_load_rundown(reaction_path, target_path):
     target_layers = [dead_loading_target_layer, live_loading_target_layer]
 
     # add column point loads
+    column_name_index = 0
     for column_element in column_reactions:
         case_index = reaction_cases.index(column_element['Reaction Case'])
         target_layer = target_layers[case_index]
-        point_load = target_layer.add_point_load(Point2D(column_element['Location X'], column_element['Location Y']))
-        point_load.Fz = column_element['Fz']
-
-    # # add wall reactions as point loads
-    # for wall_element in wall_reactions:
-    #     case_index = reaction_cases.index(wall_element['Reaction Case'])
-    #     target_layer = target_layers[case_index]
-    #     point_load = target_layer.add_point_load(Point2D(wall_element['Centroid X'], wall_element['Centroid Y']))
-    #     point_load.Fz = wall_element['Fz']
+        column_element['Point Load'] = target_layer.add_point_load(Point2D(column_element['Location X'], column_element['Location Y']))
+        column_element['Point Load'].Fz = column_element['Fz']
+        column_element['Point Load'].name = "column" + str(column_name_index)
+        column_name_index = column_name_index + 1
 
     # add wall reactions as line loads
     wall_name_index = 0
@@ -176,4 +160,11 @@ def ram_load_rundown(reaction_path, target_path):
     target_model.save_file(target_model_path)
     target_concept.shut_down()
 
-full_load_rundown(file_path_list)
+
+
+    # # add wall reactions as point loads
+    # for wall_element in wall_reactions:
+    #     case_index = reaction_cases.index(wall_element['Reaction Case'])
+    #     target_layer = target_layers[case_index]
+    #     point_load = target_layer.add_point_load(Point2D(wall_element['Centroid X'], wall_element['Centroid Y']))
+    #     point_load.Fz = wall_element['Fz']
