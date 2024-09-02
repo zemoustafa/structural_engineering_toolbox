@@ -7,7 +7,7 @@ import comtypes.client
 class etabs_api:
     def __init__(self):
         """
-        Creates instance of sap model object
+        Creates instance of sap model object to access data in etabs model
 
         """
         self.helper = comtypes.client.CreateObject("ETABSv1.Helper")
@@ -22,11 +22,18 @@ class etabs_api:
 
         self.sap_model = self.etabs_object.SapModel
 
-        self.pier_section_properties = self.get_pier_section_properties()
-        self.concrete_material_properties = self.get_concrete_material_properties()
-        self.load_cases = self.get_load_cases()
-        self.story_data = self.get_story_data()
-        self.story_names = [story_data["Story Name"] for story_data in self.story_data]
+        # self.pier_section_properties = self.get_pier_section_properties()
+        # self.concrete_material_properties = self.get_concrete_material_properties()
+        # self.load_cases = self.get_load_cases()
+        # self.story_data = self.get_story_data()
+        # self.story_names = [story_data["Story Name"] for story_data in self.story_data]
+
+    """
+    GET FUNCTIONS
+    
+    Retrieve properties, assignments and analysis results from etabs model
+    
+    """
 
     def get_piers(self, load_cases: list) -> list[dict]:
         """ Get wall/pier property assignments and pier forces for selected load cases
@@ -381,6 +388,17 @@ class etabs_api:
 
         pass
 
+    """
+    CREATE/DRAW FUNCTIONS
+    Functions that will create properties or draw objects in etabs model using their geometry and property assignments
+ 
+    """
+    def create_concrete_material_property():
+        """ Create new concrete material property
+        
+        """
+        pass
+
     def create_concrete_column_property(self, width:float, depth:float, bars_x:int, bars_y:int, db:int, material:str, reo_mat:str) -> int:
         """ Create new concrete column frame property
         
@@ -450,10 +468,6 @@ class etabs_api:
 
         return result
 
-
-    def set_stories(self, story_names:list[str], story_elevations:list[float]):
-        pass
-
     def draw_floors_by_points():
         pass
 
@@ -461,4 +475,50 @@ class etabs_api:
         pass
 
     def draw_column():
+        pass
+
+    def draw_beam():
+        pass
+
+    """
+    SET FUNCTIONS
+    Functions that will set options or properties in etabs model
+
+    """
+    
+
+    def set_stories(self, story_data:dict) -> int:
+        """ Define story names and elevations in etabs model
+
+        :param story_data: dict where each key is the story name and each value is the story elevation
+
+        :return result: returns 0 if column successfully created, otherwise returns 1
+        """
+        first_pair = next(iter(story_data.items())) # grab first key value pair
+        base_elev = first_pair[1]
+        num_stories = len(story_data)
+        story_names = list(story_data.keys())
+        story_elevations = list(story_data.values())
+        story_heights = [story_elevations[0]] + [story_elevations[i] - story_elevations[i-1] for i in range(1, len(story_elevations))]
+        is_master = [False] * num_stories
+        similar_story = ["None"] * num_stories
+        splice_above = [False] * num_stories
+        splice_h = [0] * num_stories
+
+        result = self.sap_model.Story.SetStories_2(
+        base_elev,
+        num_stories-1,
+        story_names[1:], 
+        story_heights[1:], 
+        is_master[1:], 
+        similar_story[1:], 
+        splice_above[1:], 
+        splice_h[1:]
+        )
+
+        return result
+
+    
+
+    def set_units():
         pass
