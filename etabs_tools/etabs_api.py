@@ -516,9 +516,8 @@ class etabs_api:
         splice_h[1:]
         )
 
-        return result
+        return result[-1]
 
-    
 
     def set_units():
         pass

@@ -2,13 +2,17 @@ import re
 from urllib.parse import urlparse, urljoin
 from gql import gql, Client
 from gql.transport.requests import RequestsHTTPTransport
+from specklepy.api import operations
 from specklepy.api.client import SpeckleClient
+from specklepy.transports.server import ServerTransport
 
 class speckle_client:
     def __init__(self, url:str, private_token:str):
         """
         Creates instance of speckle client with commit info ready to go from model url
 
+        :param url: url of speckle model on latest server
+        :param private_token: private token from speckle account
         """
         self.host_server, self.project_id, self.model_id, self.commit_id = extract_ids_from_url(url=url)
         self.private_token = private_token
@@ -17,10 +21,84 @@ class speckle_client:
         self.commit = self.client.commit.get(stream_id=self.project_id, commit_id=self.commit_id)
         self.commit_referenced_object = self.commit.referencedObject
 
+
+    def server_transport(self):
+        """
+        Create server transport and extract elements from speckle model
+        
+        """
+        # create an authenticated server transport from the client and receive the commit obj
+        self.transport = ServerTransport(client=self.client, stream_id=self.project_id)
+
+        # extract data from model
+        self.model_data = operations.receive(self.commit_referenced_object, remote_transport=self.transport)
+        self.elements = self.model_data["elements"]
+
+    def get_revit_floors(self):
+        """
+        Extract floor coordinates 
+        
+        :return revit_floors: list of dicts representing each floor. each X, Y and Z in dict is a list of coordinates
+        """
+        revit_floors = None  # Initialize to None
+        for element in self.elements:
+            if element['name'] == 'Floors':
+                revit_floors = element['elements']
+                break  # Exit the loop once found
+        
+        floors = []
+
+        for index, floor in enumerate(revit_floors):
+            if floor.speckle_type == "Objects.BuiltElements.Floor:Objects.BuiltElements.Revit.RevitFloor":
+                # grab outline of floor 
+                segments = floor.outline.segments
+                num_segments = len(segments)
+
+                # intialise coorindates list
+                X = [] 
+                Y = []
+                Z = []
+
+                for i, segment in enumerate(segments):
+                    # grab start and end points from current segment
+                    # remember - start of segment 2 = end of segment 1 
+                    
+                    # find if segment is line or arc
+                    if  segment.speckle_type == "Objects.Geometry.Line":
+                        start = segment.start
+                    else:
+                        start = segment.startPoint
+
+                    # check if on the final iteration of the segments loop or not
+                    if i == num_segments:
+                        # if on the final iteration, point = start of first segment
+                        x = X[0]
+                        y = Y[0]
+                        z = Z[0]
+                    else:
+                        # all other iterations = grab start point of the segment
+                        x = round(start.x, 0)
+                        y = round(start.y, 0)
+                        z = round(floor.level.elevation, 0)
+
+                    X.append(x)
+                    Y.append(y)
+                    Z.append(z)
+
+                floors.append({
+                    'X': X,
+                    'Y': Y,
+                    'Z': Z,
+                    'Name': "floor {index}"
+                })
+
+        return revit_floors
+
     def gql_client(self):
         self.gql_client = Client(
             transport=RequestsHTTPTransport( url=f"{self.host_server}graphql" )
         )
+
 
     def get_unique_levels(self):
         query = gql(
