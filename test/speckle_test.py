@@ -4,8 +4,8 @@ from speckle_tools import speckle_client
 from etabs_tools import etabs_api
 
 # inputs
-private_token = "a17392654d309903769de972c15296ec3dc4b8a7c5"
-model_url = "https://app.speckle.systems/projects/a5f5d0cbdc/models/8084b76bba@1e1e6adbb9"
+private_token = "50278a3a662962a9426c798ec642ea164abb4f0914"
+model_url = "https://app.speckle.systems/projects/9439578ade/models/166f646beb@fa5bf97c18"
 
 """
 STEP BY STEP HOW TO GRAB UNIQUE LEVELS
@@ -27,9 +27,8 @@ speckle_client.server_transport()
 # step 5 - get revit floors from model
 revit_floors = speckle_client.get_revit_floors()
 
+
 pass
-
-
 
 
 # """
@@ -37,9 +36,33 @@ pass
 
 # """
 
-# # step 1 - create instance of sap model object from etabs api class
-# sap_model = etabs_api.etabs_api()
+# step 1 - create instance of sap model object from etabs api class
+sap_model = etabs_api.etabs_api()
 
-# # step 2 - input unique levels in etabs model
-# ret = sap_model.set_stories(unique_levels)
-# print(ret)
+# step 2 - input unique levels in etabs model
+ret = sap_model.set_stories(unique_levels)
+
+# step 3 - draw floors in etabs model
+x = []
+y = []
+z = []
+
+for floor in revit_floors:
+    segments = floor.outline.segments
+    for segment in segments:
+        x.append(segment.start.x)
+        y.append(segment.start.y)
+        z.append(segment.start.z)
+    x.append(x[0])
+    y.append(y[0])
+    z.append(z[0])
+    
+    sap_model.sap_model.AreaObj.AddByCoord(
+        NumberPoints = len(x),
+        X = x,
+        Y = y,
+        Z = z,
+        Name = floor.id
+    )
+ 
+# pass

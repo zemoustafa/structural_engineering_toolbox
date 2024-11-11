@@ -1,9 +1,8 @@
 import os
 import sys
 import math
-sys.path.append(r"C:\Program Files\Bentley\Engineering\RAM Concept CONNECT Edition\RAM Concept CONNECT Edition V8\python")
+sys.path.append(r"C:\Program Files\Bentley\Engineering\RAM Concept\RAM Concept 2023\python")
 import ram_concept
-import pandas as pd
 
 from ram_concept.concept import Concept
 from ram_concept.cad_manager import CadManager
@@ -11,7 +10,15 @@ from ram_concept.result_layers import ReactionContext
 from ram_concept.point_2D import Point2D
 from ram_concept.line_segment_2D import LineSegment2D
 
+def copy_object():
+    pass
+
 def full_load_rundown(file_path_list):
+    """
+    Complete a full load rundown, requires file path of every level and
+    for each model to be aligned
+
+    """
     for i in range(len(file_path_list) - 1):
         delete_exisitng_loads(file_path_list[i + 1])
 
