@@ -92,7 +92,50 @@ class speckle_client:
                     'Name': "floor {index}"
                 })
 
-        return revit_floors
+        return floors
+
+    def get_revit_columns(self):
+        """
+        Extract floor coordinates 
+        
+        :return revit_floors: list of dicts representing each column
+
+        """
+
+        # grab revit columns from self.elements
+        revit_columns = None  # Initialize to None
+        for element in self.elements:
+            if element['name'] == 'Structural Columns':
+                revit_columns = element['elements']
+                break  # Exit the loop once found
+
+        for index, column in enumerate(revit_columns):   
+            # grab start and end points of column
+            start = column.baseLine.start # grab x, y and z at bottom of column
+            end = column.baseLine.end # grab x, y and z at top of column
+
+            # grab column base and top level names
+            baseLevel = column.level.name
+            topLevel = column.topLevel.name
+
+            # iterate within range of start and end level
+            in_range = False
+            for index, level in enumerate(story_names):
+                if level == baseLevel:
+                    in_range = True
+                if in_range:
+                    # extract start and end coordinates of column
+                    startX = round(start.x, 0)
+                    startY = round(start.y, 0)
+                    startZ = story_elevations[index]
+                    endX = np.round(end.x, 0)
+                    endY = np.round(end.y, 0)
+                    endZ = story_elevations[index + 1]
+                    # add column with ETABS API
+                    ret = SapModel.FrameObj.AddByCoord(startX, startY, startZ, endX, endY, endZ)
+                if story_names[index + 1] == topLevel:
+                    in_range = False
+                    break
 
     def gql_client(self):
         self.gql_client = Client(

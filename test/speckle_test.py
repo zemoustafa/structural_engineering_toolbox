@@ -36,33 +36,24 @@ pass
 
 # """
 
-# step 1 - create instance of sap model object from etabs api class
-sap_model = etabs_api.etabs_api()
+# # step 1 - create instance of sap model object from etabs api class
+# sap_model = etabs_api.etabs_api()
 
-# step 2 - input unique levels in etabs model
-ret = sap_model.set_stories(unique_levels)
+# # step 2 - input unique levels in etabs model
+# ret = sap_model.set_stories(unique_levels)
 
-# step 3 - draw floors in etabs model
-x = []
-y = []
-z = []
-
-for floor in revit_floors:
-    segments = floor.outline.segments
-    for segment in segments:
-        x.append(segment.start.x)
-        y.append(segment.start.y)
-        z.append(segment.start.z)
-    x.append(x[0])
-    y.append(y[0])
-    z.append(z[0])
+# # step 3 - draw floors in etabs model
+# revit_floors = speckle_client.get_revit_floors()
     
-    sap_model.sap_model.AreaObj.AddByCoord(
-        NumberPoints = len(x),
-        X = x,
-        Y = y,
-        Z = z,
-        Name = floor.id
-    )
+# for floor in revit_floors:
+#     sap_model.sap_model.AreaObj.AddByCoord(
+#     NumberPoints = len(floor['X']),
+#     X = floor['X'],
+#     Y = floor['Y'],
+#     Z = floor['Z'],
+#     Name = floor['Name']
+# )
  
-# pass
+# step 4 - draw columns
+revit_columns = speckle_client.get_revit_columns()
+pass
