@@ -34,6 +34,7 @@ class speckle_client:
         self.model_data = operations.receive(self.commit_referenced_object, remote_transport=self.transport)
         self.elements = self.model_data["elements"]
 
+
     def get_revit_floors(self):
         """
         Extract floor coordinates 
@@ -48,7 +49,7 @@ class speckle_client:
         
         floors = []
 
-        for index, floor in enumerate(revit_floors):
+        for floor in revit_floors:
             if floor.speckle_type == "Objects.BuiltElements.Floor:Objects.BuiltElements.Revit.RevitFloor":
                 # grab outline of floor 
                 segments = floor.outline.segments
@@ -94,48 +95,69 @@ class speckle_client:
 
         return floors
 
-    def get_revit_columns(self):
-        """
-        Extract floor coordinates 
+
+    def get_revit_walls(self, unique_levels:list[dict]):
+        # GRAB WALL DATA FROM MODEL
+        revit_walls = None  # Initialize to None
+        for element in self.elements:
+            if element['name'] == 'Walls':
+                revit_walls = element['elements']
+                break  # Exit the loop once found
+
+        # get individual story heights
+        walls = []
+
+        # loop through each wall in the collection
+        for wall in revit_walls:
+            if hasattr(wall.baseLine, 'start'):
+                walls.append({
+                    'Name': wall.id,
+                    'Bottom Level': wall.level.name,
+                    'Top Level': wall.topLevel.name,
+                    'Start X': round(wall.baseLine.start.x, 0),
+                    'Start Y': round(wall.baseLine.start.y, 0),
+                    'Bottom Z': round(wall.level.elevation, 0),
+                    'End X': round(wall.baseLine.end.x, 0),
+                    'End Y': round(wall.baseLine.end.y, 0),
+                    'Top Z': round(wall.topLevel.elevation, 0),
+                })
         
-        :return revit_floors: list of dicts representing each column
+        return walls
+
+
+    def get_revit_columns(self, unique_levels:list[dict]):
+        """
+        Extract column coordinates 
+        
+        :return columns: list of dicts representing each column
 
         """
-
         # grab revit columns from self.elements
         revit_columns = None  # Initialize to None
         for element in self.elements:
             if element['name'] == 'Structural Columns':
                 revit_columns = element['elements']
                 break  # Exit the loop once found
+            
+        columns = []
 
-        for index, column in enumerate(revit_columns):   
-            # grab start and end points of column
-            start = column.baseLine.start # grab x, y and z at bottom of column
-            end = column.baseLine.end # grab x, y and z at top of column
+        for column in revit_columns: 
+            # add properties to list
+            columns.append({
+                'Name':column.id,
+                'Bottom Level': column.level.name,
+                'Bottom X': column.baseLine.start.x,
+                'Bottom Y': column.baseLine.start.y,
+                'Bottom Z': column.baseLine.start.z,
+                'Top Level': column.topLevel.name,
+                'Top X': column.baseLine.end.x,
+                'Top Y': column.baseLine.end.y,
+                'Top Z': column.baseLine.end.z,
+                'b': column.parameters.b.value,
+                'h': column.parameters.h.value,
+            })
+        return columns
 
-            # grab column base and top level names
-            baseLevel = column.level.name
-            topLevel = column.topLevel.name
-
-            # iterate within range of start and end level
-            in_range = False
-            for index, level in enumerate(story_names):
-                if level == baseLevel:
-                    in_range = True
-                if in_range:
-                    # extract start and end coordinates of column
-                    startX = round(start.x, 0)
-                    startY = round(start.y, 0)
-                    startZ = story_elevations[index]
-                    endX = np.round(end.x, 0)
-                    endY = np.round(end.y, 0)
-                    endZ = story_elevations[index + 1]
-                    # add column with ETABS API
-                    ret = SapModel.FrameObj.AddByCoord(startX, startY, startZ, endX, endY, endZ)
-                if story_names[index + 1] == topLevel:
-                    in_range = False
-                    break
 
     def gql_client(self):
         self.gql_client = Client(
