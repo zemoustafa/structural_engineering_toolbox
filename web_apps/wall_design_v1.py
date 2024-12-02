@@ -4,8 +4,10 @@ import streamlit as st
 import xlsxwriter
 import sys
 sys.path.append(r"C:\_Github\structural_engineering_toolbox")
-from modules import as3600_wall_design, etabs_api, design_reports
-
+from design_functions import as3600_wall_design
+from etabs_tools import etabs_api
+from design_reports import design_reports
+# python -m streamlit run web_apps/wall_design_v1.py
 # -------------------------------------------------------------------------------------------------------------------
 # SET UP PAGE
 st.set_page_config(
