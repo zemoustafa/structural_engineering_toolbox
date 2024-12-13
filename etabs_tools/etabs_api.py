@@ -22,11 +22,11 @@ class etabs_api:
 
         self.sap_model = self.etabs_object.SapModel
 
-        # self.pier_section_properties = self.get_pier_section_properties()
-        # self.concrete_material_properties = self.get_concrete_material_properties()
-        # self.load_cases = self.get_load_cases()
-        # self.story_data = self.get_story_data()
-        # self.story_names = [story_data["Story Name"] for story_data in self.story_data]
+        self.pier_section_properties = self.get_pier_section_properties()
+        self.concrete_material_properties = self.get_concrete_material_properties()
+        self.load_cases = self.get_load_cases()
+        self.story_data = self.get_story_data()
+        self.story_names = [story_data["Story Name"] for story_data in self.story_data]
 
     """
     GET FUNCTIONS
@@ -134,10 +134,10 @@ class etabs_api:
                         "Axis Angle": piers[2][i],
                         "Num Area Objs": piers[3][i],
                         "Num Line Objs": piers[4][i],
-                        "Width Bot": round(piers[5][i] * 1000, 0),
-                        "Thickness Bot": piers[6][i] * 1000,
-                        "Width Top": round(piers[7][i] * 1000, 0),
-                        "Thickness Top": piers[8][i] * 1000,
+                        "Width Bot": round(piers[5][i], 0),
+                        "Thickness Bot": piers[6][i],
+                        "Width Top": round(piers[7][i], 0),
+                        "Thickness Top": piers[8][i],
                         "Mat Prop": piers[9][i],
                         "CG Bot X": piers[10][i],
                         "CG Bot Y": piers[11][i],
@@ -188,7 +188,7 @@ class etabs_api:
             conc_mat.append(
                 {
                     "Mat Name": mat_name,
-                    "fc": material[0] / 1000,
+                    "fc": material[0],
                     "Is Lightweight": material[1],
                     "fcs Factor": material[2],
                     "SS Type": material[3],
