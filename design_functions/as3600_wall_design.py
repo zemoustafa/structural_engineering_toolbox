@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import sys
 sys.path.append(r"C:\_Github\structural_engineering_toolbox")
-from modules import load_factors
+from design_functions import load_factors
 import copy
 
 '''
