@@ -8,7 +8,7 @@ from concreteproperties import Concrete, ConcreteLinear, ConcreteSection, Rectan
 
 from concreteproperties.design_codes import AS3600
 from concreteproperties.results import MomentInteractionResults
-from shapely.geometry import LineString
+from shapely.geometry import LineString, Point, Polygon
 
 def __round_up_to_even(f):
     return math.ceil(f / 2.) * 2
@@ -46,7 +46,37 @@ def __find_intersection(f_m_x, f_n_x, m_star, n_star):
         intersection = curve.intersection(extended_line)
 
     return intersection
-    
+
+def __is_point_inside_curve(f_m_x, f_n_x, m_star, n_star):
+    """
+    Determines whether the point (m_star, n_star) lies inside the curve.
+
+    Args:
+        f_m_x (list of floats): x-coordinates of the curve.
+        f_n_x (list of floats): y-coordinates of the curve.
+        m_star (float): x-coordinate of the point to test.
+        n_star (float): y-coordinate of the point to test.
+
+    Returns:
+        bool: True if the point is inside the curve, False otherwise.
+    """
+    # Combine x and y coordinates into a list of tuples for the curve
+    curve_coords = list(zip(f_m_x, f_n_x))
+
+    # Check if the curve forms a closed loop (first and last points are the same)
+    is_closed = curve_coords[0] == curve_coords[-1]
+
+    if is_closed:
+        # If the curve is closed, create a Polygon
+        polygon = Polygon(curve_coords)
+        point = Point(m_star, n_star)
+        return polygon.contains(point)
+    else:
+        # If the curve is open, determine if the line intersects the curve
+        curve = LineString(curve_coords)
+        test_line = LineString([(0, 0), (m_star, n_star)])
+        return curve.contains(test_line)
+
 def __calculate_effective_shear_depth(d, cover, v_bar_area, v_bar_cts, h_bar_dia):
     '''
     Determine effective shear depth of deep beam section
@@ -244,7 +274,7 @@ def moment_interaction_design(fc, cover, d, b, v_bar_dia, v_bar_cts, h_bar_dia, 
     })
 
     # Check applied axial load and moment fall within diagram
-    point_in_diagram = f_mi_res.point_in_diagram(n_star, m_star) # Check if point is within diagram
+    point_in_diagram = __is_point_inside_curve(f_m_x, f_n_x, n_star, m_star) # Check if point is within diagram
     pass_fail = 'Pass' if point_in_diagram == True else 'Fail' 
 
     # Initialize phi_n and phi_m
