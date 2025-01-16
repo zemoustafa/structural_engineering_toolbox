@@ -12,6 +12,7 @@ These functions will be used to design many walls at once, where each wall is re
 
 '''
 # DESIGN ALL WALLS
+
 def full_wall_design(walls:list[dict], load_cases:list[str], vcts:list[float], hcts:list[float], story_names:list[str], phz_levels:list[str], wall_type:str, mu_sp:float) -> list[dict]:
     piers_as_walls = []
     for wall in walls:

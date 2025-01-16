@@ -44,22 +44,18 @@ class etabs_api:
         piers = []
         pier_forces = self.get_pier_forces(load_cases)
 
-        for section_property in self.pier_section_properties:
-            for story in self.story_data:
-                if section_property["Story Name"] == story["Story Name"]:
-                    section_property["Story Height"] = round(story["Story Height"] * 1000, 0)
+        # Create a dictionary for quick lookup of story heights and material properties
+        story_heights = {story["Story Name"]: round(story["Story Height"] * 1000, 0) for story in self.story_data}
+        material_fc = {material["Mat Name"]: material["fc"] for material in self.concrete_material_properties}
 
-            for material_prop in self.concrete_material_properties:
-                if section_property["Mat Prop"] == material_prop["Mat Name"]:
-                    section_property["fc"] = material_prop["fc"]
+        for section_property in self.pier_section_properties:
+            section_property["Story Height"] = story_heights.get(section_property["Story Name"], 0)
+            section_property["fc"] = material_fc.get(section_property["Mat Prop"], 0)
 
             for pier_force in pier_forces:
-                if (
-                    section_property["Story Name"] == pier_force["Story Name"]
-                    and section_property["Pier Name"] == pier_force["Pier Name"]
-                    and pier_force["Location"] == "Bottom"
-                ):
-                    section_property[pier_force["Load Case"]] = pier_force
+                if section_property["Story Name"] == pier_force["Story Name"] and section_property["Pier Name"] == pier_force["Pier Name"]:
+                    key = f"{pier_force['Load Case']} {pier_force['Location']} {pier_force['Step Type']}"
+                    section_property[key] = pier_force
 
             piers.append(section_property)
 
@@ -78,13 +74,19 @@ class etabs_api:
             if result == 1:
                 self.sap_model.Results.Setup.DeselectAllCasesAndCombosForOutput()
                 result = self.sap_model.Results.Setup.SetComboSelectedForOutput(case)
-            pier_force = self.sap_model.Results.PierForce()
-            number_results = pier_force[0]
-            for i in range(number_results):
-                pier_force_dict = {
+                pier_force = self.sap_model.Results.PierForce()
+            # Convert the tuple to a set to get unique strings
+            unique_strings = set(pier_force[2])
+            num_unique_piers = len(unique_strings)
+            max_min_order = ['Max', 'Max', 'Min', 'Min']
+            for k in range(num_unique_piers):
+                for j in range(len(max_min_order)):
+                    i = k * len(max_min_order) + j
+                    pier_force_dict = {
                     "Story Name": pier_force[1][i],
                     "Pier Name": pier_force[2][i],
                     "Load Case": pier_force[3][i],
+                    "Step Type": max_min_order[j],
                     "Location": pier_force[4][i],
                     "p": pier_force[5][i],
                     "v2": pier_force[6][i],
@@ -92,10 +94,19 @@ class etabs_api:
                     "t": pier_force[8][i],
                     "m2": pier_force[9][i],
                     "m3": pier_force[10][i],
-                }
-                pier_force_list.append(pier_force_dict)
+                    }
+                    pier_force_list.append(pier_force_dict)
         return pier_force_list
 
+    def get_story_names(self) -> list[str]:
+        """ Get list of story names
+
+        :return story_data: list of dicts containing story data
+        """
+        stories = self.sap_model.Story.GetStories_2()
+        story_names = stories[2]
+        return story_names
+    
     def get_story_data(self) -> list[dict]:
         """ Get list of story names, elevations and heights
 
