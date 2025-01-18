@@ -24,7 +24,7 @@ def __find_intersection(f_m_x, f_n_x, m_star, n_star):
         n_star (float): y-coordinate of the end point of the line.
 
     Returns:
-        Point or MultiPoint: Intersection point(s) between the extended line and the curve.
+        Point: Intersection point between the extended line and the curve.
     """
     # Combine x and y coordinates into a list of tuples for the curve
     curve_coords = list(zip(f_m_x, f_n_x))
@@ -36,16 +36,18 @@ def __find_intersection(f_m_x, f_n_x, m_star, n_star):
     direction = (m_star, n_star)
     extended_line = LineString([(0, 0), (10 * direction[0], 10 * direction[1])])  # Extend by a factor of 10 or more
 
-    # Check if the line is within the curve
-    line_segment = LineString([(0, 0), direction])
-    if curve.contains(line_segment):
-        # If the line is within the curve, extend it and find the intersection
-        intersection = curve.intersection(extended_line)
-    else:
-        # If the line is outside, find the intersection directly
-        intersection = curve.intersection(extended_line)
+    # Find the intersection
+    intersection = curve.intersection(extended_line)
 
-    return intersection
+    # Extract phi_n and phi_m from the intersection point
+    point_1 = intersection.geoms[0]
+    point_2 = intersection.geoms[1]
+
+    intersection = point_1 if point_1.coords[0][0] > point_2.coords[0][0] else point_2
+
+    phi_n, phi_m = intersection.y, intersection.x
+
+    return phi_n, phi_m
 
 def __is_point_inside_curve(f_m_x, f_n_x, m_star, n_star):
     """
@@ -60,22 +62,19 @@ def __is_point_inside_curve(f_m_x, f_n_x, m_star, n_star):
     Returns:
         bool: True if the point is inside the curve, False otherwise.
     """
-    # Combine x and y coordinates into a list of tuples for the curve
-    curve_coords = list(zip(f_m_x, f_n_x))
+    # Combine coordinates into a list of tuples and ensure closure
+    f_m_x.append(f_m_x[0]) # Close the curve
+    f_n_x.append(f_n_x[0]) # Close the curve
 
-    # Check if the curve forms a closed loop (first and last points are the same)
-    is_closed = curve_coords[0] == curve_coords[-1]
+    curve_coords = list(zip(f_m_x, f_n_x)) # Combine x and y coordinates into a list of tuples
 
-    if is_closed:
-        # If the curve is closed, create a Polygon
-        polygon = Polygon(curve_coords)
-        point = Point(m_star, n_star)
-        return polygon.contains(point)
-    else:
-        # If the curve is open, determine if the line intersects the curve
-        curve = LineString(curve_coords)
-        test_line = LineString([(0, 0), (m_star, n_star)])
-        return curve.contains(test_line)
+    polygon = Polygon(curve_coords) # Create a polygon from the curve coordinates
+
+    point = Point(m_star, n_star) # Create a point from the input coordinates
+
+    # Check if the line is entirely within the polygon
+    is_in_curve = polygon.contains(point)
+    return is_in_curve
 
 def __calculate_effective_shear_depth(d, cover, v_bar_area, v_bar_cts, h_bar_dia):
     '''
@@ -249,43 +248,22 @@ def moment_interaction_design(fc, cover, d, b, v_bar_dia, v_bar_cts, h_bar_dia, 
     )
     conc_sec = ConcreteSection(geom) # Create concrete section
     design_code.assign_concrete_section(concrete_section=conc_sec) # Assign concrete section above to design code
-    concrete_section_plot = conc_sec.plot_section(title='Pier')
+    # concrete_section_plot = conc_sec.plot_section(title='Pier')
 
     # Create moment interaction diagram. Returns -> tuple[MomentInteractionResults, MomentInteractionResults, list[float]]
     f_mi_res, mi_res, phis = design_code.moment_interaction_diagram(progress_bar=False, n_points=18)
 
     # Split up unfactored results and factored results
-    results_list = mi_res.get_results_lists(moment='m_x')
     f_results_list = f_mi_res.get_results_lists(moment='m_x')
     f_n_x = [x / 1000 for x in f_results_list[0]] # Convert to kN
     f_m_x = [x / 1000000 for x in f_results_list[1]] # Convert to kNm
-
-    # Save results in dataframe for future comparison with other software
-    n_x = results_list[0]
-    m_x = results_list[1]
-
-    # Create dataframe with results
-    df = pd.DataFrame({
-        'N': [divmod(x, 1000)[0] for x in n_x], 
-        'f_N': f_n_x, 
-        'M': [divmod(x, 1000000)[0] for x in m_x],
-        'f_M': f_m_x,
-        'phi': phis
-    })
 
     # Check applied axial load and moment fall within diagram
     point_in_diagram = __is_point_inside_curve(f_m_x, f_n_x, n_star, m_star) # Check if point is within diagram
     pass_fail = 'Pass' if point_in_diagram == True else 'Fail' 
 
-    # Initialize phi_n and phi_m
-    phi_n, phi_m = None, None
-
     # Find the intersection point
-    intersection_point = __find_intersection(f_m_x, f_n_x, m_star, n_star)
-    
-    # Extract phi_n and phi_m from the intersection point
-    if not intersection_point.is_empty:
-        phi_n, phi_m = intersection_point.y, intersection_point.x
+    phi_n, phi_m = __find_intersection(f_m_x, f_n_x, m_star, n_star)
 
     # Plot the point (n_star, m_star) and the line from (0,0) to (n_star, m_star) using matplotlib
     plt.figure()
@@ -304,15 +282,15 @@ def moment_interaction_design(fc, cover, d, b, v_bar_dia, v_bar_cts, h_bar_dia, 
     plt.grid(True)
     plt.show()
 
-    return pass_fail, concrete_section_plot, phi_n, phi_m
+    return pass_fail, phi_n, phi_m
 
 
 # input parameters
 fc = 50
 d = 2500
-b = 200
+b = 180
 h = 4200
-v_bar_dia = 16
+v_bar_dia = 24
 h_bar_dia = 12
 cover = 30
 v_bar_cts = 200
@@ -323,7 +301,7 @@ v_star = 500
 mu_sp = 2.6
 
 # Check column interaction diagram
-pass_fail, concrete_section_plot, phi_n, phi_m = moment_interaction_design(fc, cover, d, b, v_bar_dia, v_bar_cts, h_bar_dia, n_star, m_star)
+pass_fail, phi_n, phi_m = moment_interaction_design(fc, cover, d, b, v_bar_dia, v_bar_cts, h_bar_dia, n_star, m_star)
 
 # Check column shear capacity
 v_uc, v_us = column_shear(fc, cover, d, b, h, v_bar_dia, v_bar_cts, h_bar_dia, h_bar_cts)
