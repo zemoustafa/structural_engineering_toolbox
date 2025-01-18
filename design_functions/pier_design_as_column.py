@@ -40,10 +40,14 @@ def __find_intersection(f_m_x, f_n_x, m_star, n_star):
     intersection = curve.intersection(extended_line)
 
     # Extract phi_n and phi_m from the intersection point
-    point_1 = intersection.geoms[0]
-    point_2 = intersection.geoms[1]
+    if intersection.geom_type == 'Point':
+        phi_n, phi_m = intersection.y, intersection.x
+        return phi_n, phi_m
+    elif intersection.geom_type == 'MultiPoint':
+        point_1 = intersection.geoms[0]
+        point_2 = intersection.geoms[1]
 
-    intersection = point_1 if point_1.coords[0][0] > point_2.coords[0][0] else point_2
+        intersection = point_1 if point_1.coords[0][0] > point_2.coords[0][0] else point_2
 
     phi_n, phi_m = intersection.y, intersection.x
 
@@ -70,10 +74,11 @@ def __is_point_inside_curve(f_m_x, f_n_x, m_star, n_star):
 
     polygon = Polygon(curve_coords) # Create a polygon from the curve coordinates
 
-    point = Point(m_star, n_star) # Create a point from the input coordinates
+    point = Point(n_star, m_star) # Create a point from the input coordinates
 
     # Check if the line is entirely within the polygon
     is_in_curve = polygon.contains(point)
+
     return is_in_curve
 
 def __calculate_effective_shear_depth(d, cover, v_bar_area, v_bar_cts, h_bar_dia):
@@ -259,7 +264,9 @@ def moment_interaction_design(fc, cover, d, b, v_bar_dia, v_bar_cts, h_bar_dia, 
     f_m_x = [x / 1000000 for x in f_results_list[1]] # Convert to kNm
 
     # Check applied axial load and moment fall within diagram
+
     point_in_diagram = __is_point_inside_curve(f_m_x, f_n_x, n_star, m_star) # Check if point is within diagram
+    # point_in_diagram = f_mi_res.point_in_diagram(n_star, m_star, moment='m_x') # Check if point is within diagram
     pass_fail = 'Pass' if point_in_diagram == True else 'Fail' 
 
     # Find the intersection point
@@ -288,15 +295,15 @@ def moment_interaction_design(fc, cover, d, b, v_bar_dia, v_bar_cts, h_bar_dia, 
 # input parameters
 fc = 50
 d = 2500
-b = 180
+b = 450
 h = 4200
 v_bar_dia = 24
 h_bar_dia = 12
 cover = 30
 v_bar_cts = 200
 h_bar_cts = 200
-n_star = 3000
-m_star = 6000
+n_star = 10000
+m_star = 20000
 v_star = 500
 mu_sp = 2.6
 
