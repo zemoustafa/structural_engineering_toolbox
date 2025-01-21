@@ -257,14 +257,23 @@ def moment_interaction_design(fc, cover, d, b, v_bar_dia, v_bar_cts, h_bar_dia, 
     # concrete_section_plot = conc_sec.plot_section(title='Pier')
 
     # Create moment interaction diagram. Returns -> tuple[MomentInteractionResults, MomentInteractionResults, list[float]]
-    f_mi_res, mi_res, phis = design_code.moment_interaction_diagram(progress_bar=False, n_points=18)
+    f_mi_res, mi_res, phis = design_code.moment_interaction_diagram(progress_bar=False, n_points=18, control_points=[("fy", 1.0)])
 
     # Split up unfactored results and factored results
     f_results_list = f_mi_res.get_results_lists(moment='m_x')
     f_n_x = [x / 1000 for x in f_results_list[0]] # Convert to kN
     f_m_x = [x / 1000000 for x in f_results_list[1]] # Convert to kNm
 
+    # Extract balance point (where ku rounds to 0.545)
+    for result in mi_res.results:
+        if round(result.k_u, 3) == 0.545:
+            balance_point = (result.m_x, result.n) # Unfactored moment and axial load at balance point
+            break
     print(pd.DataFrame({'N': f_n_x, 'M': f_m_x}))
+
+    # Calculate buckling load
+    d_0 = d - cover - h_bar_dia - v_bar_dia/2
+    n_c = round( (math.pi**2 / h**2) * ((182 * d_0) * 0.65 * balance_point[0] / (1 + 0.5)) / 1000, 1 ) # kN
 
     # Check applied axial load and moment fall within diagram
     point_in_diagram = __is_point_inside_curve(f_m_x, f_n_x, n_star, m_star) # Check if point is within diagram
@@ -290,7 +299,7 @@ def moment_interaction_design(fc, cover, d, b, v_bar_dia, v_bar_cts, h_bar_dia, 
     ax.legend()
     ax.grid(True)
 
-    results = (n_bars_y, pass_fail, phi_n, phi_m, fig) # Return results as tuple
+    results = (n_bars_y, pass_fail, phi_n, phi_m, fig, balance_point, n_c) # Return results as tuple
     return results
 
 
@@ -333,6 +342,8 @@ print('Number bars in y: ' + str(moment_interaction_results[0]))
 print('Moment Interaction Result: ' + moment_interaction_results[1]) # pass or fail
 print('Phi N: ' + str(round(moment_interaction_results[2], 1))) # intersection with N
 print('Phi M: ' + str(round(moment_interaction_results[3], 1))) # intersection with M
+print('Balance Point: ' + str(moment_interaction_results[5])) # balance point
+print('Column Buckling Load: ' + str(moment_interaction_results[6])) # column buckling
 
 shear_pass_fail = 'Pass' if 0.7*v_uc + 0.7*v_us > v_star else 'Fail'
 print('Shear Capacity Results: ' + shear_pass_fail)
