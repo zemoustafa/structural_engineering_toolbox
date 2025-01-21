@@ -202,11 +202,12 @@ def moment_interaction_design(fc, cover, d, b, v_bar_dia, v_bar_cts, h_bar_dia, 
     h_bar_cts (float): spacing of horizontal bars
 
     Returns:
-    pass_fail (str): returns 'Pass' if applied load and moment falls within diagram, otherwise 'Fail'
-    moment_interaction_plot (Axes): plot of moment interaction diagram
-    concrete_section_plot (Axes): plot showing concrete section and reo layout
-    phi_n (float): intersection coordinate N with the curve
-    phi_m (float): intersection coordinate M with the curve
+    results (tuple): tuple containing the following:
+        pass_fail (str): returns 'Pass' if applied load and moment falls within diagram, otherwise 'Fail'
+        moment_interaction_plot (Axes): plot of moment interaction diagram
+        concrete_section_plot (Axes): plot showing concrete section and reo layout
+        phi_n (float): intersection coordinate N with the curve
+        phi_m (float): intersection coordinate M with the curve
 
     '''
     # Determine if column is short or slender
@@ -263,8 +264,9 @@ def moment_interaction_design(fc, cover, d, b, v_bar_dia, v_bar_cts, h_bar_dia, 
     f_n_x = [x / 1000 for x in f_results_list[0]] # Convert to kN
     f_m_x = [x / 1000000 for x in f_results_list[1]] # Convert to kNm
 
-    # Check applied axial load and moment fall within diagram
+    print(pd.DataFrame({'N': f_n_x, 'M': f_m_x}))
 
+    # Check applied axial load and moment fall within diagram
     point_in_diagram = __is_point_inside_curve(f_m_x, f_n_x, n_star, m_star) # Check if point is within diagram
     # point_in_diagram = f_mi_res.point_in_diagram(n_star, m_star, moment='m_x') # Check if point is within diagram
     pass_fail = 'Pass' if point_in_diagram == True else 'Fail' 
@@ -273,52 +275,68 @@ def moment_interaction_design(fc, cover, d, b, v_bar_dia, v_bar_cts, h_bar_dia, 
     phi_n, phi_m = __find_intersection(f_m_x, f_n_x, m_star, n_star)
 
     # Plot the point (n_star, m_star) and the line from (0,0) to (n_star, m_star) using matplotlib
-    plt.figure()
-    plt.plot(f_m_x, f_n_x, label='Interaction Curve') # Plots interaction curve
-    plt.plot(m_star, n_star, 'ro', label='Applied Load') # Plots point where N and M are applied
-    plt.plot([0, m_star], [0, n_star], 'b-', label='Load Line') # Plots solid line from (0,0) to (n_star, m_star)
+    fig, ax = plt.subplots()
+    ax.plot(f_m_x, f_n_x, label='Interaction Curve') # Plots interaction curve
+    ax.plot(m_star, n_star, 'ro', label='Applied Load') # Plots point where N and M are applied
+    ax.plot([0, m_star], [0, n_star], 'b-', label='Load Line') # Plots solid line from (0,0) to (n_star, m_star)
 
     # Plot the extension as a dashed line if inside the curve
     if point_in_diagram:
-        plt.plot([m_star, phi_m], [n_star, phi_n], 'b--', label='Extension Line')
+        ax.plot([m_star, phi_m], [n_star, phi_n], 'b--', label='Extension Line')
 
-    plt.ylabel('Axial Load (kN)')
-    plt.xlabel('Moment (kNm)')
-    plt.title('Moment Interaction Diagram')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
+    ax.set_ylabel('Axial Load (kN)')
+    ax.set_xlabel('Moment (kNm)')
+    ax.set_title('Moment Interaction Diagram')
+    ax.legend()
+    ax.grid(True)
 
-    return pass_fail, phi_n, phi_m
+    results = (n_bars_y, pass_fail, phi_n, phi_m, fig) # Return results as tuple
+    return results
 
 
 # input parameters
 fc = 50
-d = 2500
-b = 450
+d = 2000
+b = 250
 h = 4200
-v_bar_dia = 24
-h_bar_dia = 12
+v_bar_dia = 28
+h_bar_dia = 20
 cover = 30
 v_bar_cts = 200
 h_bar_cts = 200
-n_star = 10000
-m_star = 20000
+n_star = 3000
+m_star = 3000
 v_star = 500
 mu_sp = 2.6
 
 # Check column interaction diagram
-pass_fail, phi_n, phi_m = moment_interaction_design(fc, cover, d, b, v_bar_dia, v_bar_cts, h_bar_dia, n_star, m_star)
+moment_interaction_results = moment_interaction_design(fc, cover, d, b, v_bar_dia, v_bar_cts, h_bar_dia, n_star, m_star)
 
 # Check column shear capacity
 v_uc, v_us = column_shear(fc, cover, d, b, h, v_bar_dia, v_bar_cts, h_bar_dia, h_bar_cts)
 
+print('Column Design Results')
+print('---------------------')
+print('Column Dimensions: ' + str(b) + ' x ' + str(d) + ' mm')
+print('Concrete Strength: ' + str(fc) + ' MPa')
+print('Vertical Bar Diameter: ' + str(v_bar_dia) + ' mm')
+print('Vertical Bar Spacing: ' + str(v_bar_cts) + ' mm')
+print('Horizontal Bar Diameter: ' + str(h_bar_dia) + ' mm')
+print('Horizontal Bar Spacing: ' + str(h_bar_cts) + ' mm')
+print('Cover to Reinforcement: ' + str(cover) + ' mm')
+print('Axial Load: ' + str(n_star) + ' kN')
+print('Moment: ' + str(m_star) + ' kNm')
+print('Shear Load: ' + str(v_star) + ' kN')
+print('Mu Sp: ' + str(mu_sp))
+print('Number bars in y: ' + str(moment_interaction_results[0]))
 
-print('Result: ' + pass_fail)
-print('Phi N: ' + str(round(phi_n, 1)))
-print('Phi M: ' + str(round(phi_m, 1)))
+print('Moment Interaction Result: ' + moment_interaction_results[1]) # pass or fail
+print('Phi N: ' + str(round(moment_interaction_results[2], 1))) # intersection with N
+print('Phi M: ' + str(round(moment_interaction_results[3], 1))) # intersection with M
+
+shear_pass_fail = 'Pass' if 0.7*v_uc + 0.7*v_us > v_star else 'Fail'
+print('Shear Capacity Results: ' + shear_pass_fail)
+print('Concrete Shear Capacity: ' + str(round(v_uc, 1)) + ' kN') # concrete shear capacity
+print('Steel Shear Capacity: ' + str(round(v_us, 1)) + ' kN') # steel shear capacity
+
 plt.show()
-
-print('Concrete Shear Capacity: ' + str(round(v_uc, 1)) + ' kN')
-print('Steel Shear Capacity: ' + str(round(v_us, 1)) + ' kN')
-
