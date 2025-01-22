@@ -13,6 +13,7 @@ from shapely.geometry import LineString, Point, Polygon
 def __round_up_to_even(f):
     return math.ceil(f / 2.) * 2
 
+
 def __find_intersection(f_m, f_n, m_star, n_star):
     """
     Find the intersection of a line with a curve.
@@ -53,6 +54,7 @@ def __find_intersection(f_m, f_n, m_star, n_star):
 
     return phi_n, phi_m
 
+
 def __is_point_inside_curve(f_m_x, f_n_x, m_star, n_star):
     """
     Determines whether the point (m_star, n_star) lies inside the curve.
@@ -81,6 +83,7 @@ def __is_point_inside_curve(f_m_x, f_n_x, m_star, n_star):
 
     return is_in_curve
 
+
 def __extract_balance_point(mi_res):
     """
     Extracts the balance point from the moment interaction results.
@@ -95,6 +98,7 @@ def __extract_balance_point(mi_res):
         if round(result.k_u, 3) == 0.545:
             return (result.m_x, result.m_y, result.n)  # Unfactored moment and axial load at balance point
     return None
+
 
 def __calculate_effective_shear_depth(d, cover, v_bar_area, v_bar_cts, h_bar_dia):
     '''
@@ -132,6 +136,7 @@ def __calculate_effective_shear_depth(d, cover, v_bar_area, v_bar_cts, h_bar_dia
     ast_total = round( sum(Ast[i] for i in range(len(Ast))), 0 ) # ast within tensile region
 
     return dvy, ast_total
+
 
 def column_shear(fc, cover, d, b, h, v_bar_dia, v_bar_cts, h_bar_dia, h_bar_cts):
     '''
@@ -179,6 +184,7 @@ def column_shear(fc, cover, d, b, h, v_bar_dia, v_bar_cts, h_bar_dia, h_bar_cts)
     # return values
     return v_uc, v_us
 
+
 def moment_magnification_factor(fc, bracing, d, b, n_c, n_star, m_star_top, m_star_bot, l_e, r, beta_d=0.5):
     '''
     Determines moment amplification factor for slender columns based on Cl 10.4
@@ -191,6 +197,8 @@ def moment_magnification_factor(fc, bracing, d, b, n_c, n_star, m_star_top, m_st
     n_star (float): applied axial load
     m_star_top (float): applied moment at top of column
     m_star_bot (float): applied moment at bottom of column
+    l_e (float): effective length of column
+    r (float): radius of gyration of column
 
     Returns:
     magnification_factor (float): moment magnification factor
@@ -225,6 +233,7 @@ def moment_magnification_factor(fc, bracing, d, b, n_c, n_star, m_star_top, m_st
         raise ValueError("Invalid bracing condition. Must be 'Braced' or 'Unbraced'.")
     
     return magnification_factor
+
 
 def column_buckling_load(d, v_bar_dia, h_bar_dia, cover, m_ub, beta_d):
     '''
@@ -272,11 +281,10 @@ def moment_interaction_design(fc, cover, d, b, v_bar_dia, v_bar_cts, h_bar_dia, 
 
     Returns:
     results (tuple): tuple containing the following:
-        pass_fail (str): returns 'Pass' if applied load and moment falls within diagram, otherwise 'Fail'
-        moment_interaction_plot (Axes): plot of moment interaction diagram
-        concrete_section_plot (Axes): plot showing concrete section and reo layout
-        phi_n (float): intersection coordinate N with the curve
-        phi_m (float): intersection coordinate M with the curve
+        pass_fail (tuple): tuple containing pass/fail results for x and y axes
+        capacity_x (tuple): tuple containing phi_m and phi_n for x axis
+        capacity_y (tuple): tuple containing phi_m and phi_n for y axis
+        fig (matplotlib.figure.Figure): matplotlib figure object
 
     '''
     def create_concrete_section(b, d, n_bars_x, n_bars_y):
