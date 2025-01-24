@@ -35,7 +35,7 @@ def __find_intersection(f_m, f_n, m_star, n_star):
     
     # Define the line extending from (0, 0) through (m_star, n_star)
     direction = (m_star, n_star)
-    extended_line = LineString([(0, 0), (10 * direction[0], 10 * direction[1])])  # Extend by a factor of 10 or more
+    extended_line = LineString([(0, 0), (100000 * direction[0], 100000 * direction[1])])  # Extend by a factor of 1000 or more
 
     # Find the intersection
     intersection = curve.intersection(extended_line)
@@ -100,7 +100,7 @@ def __extract_balance_point(mi_res):
     return None
 
 
-def __calculate_effective_shear_depth(d, cover, v_bar_area, v_bar_cts, h_bar_dia):
+def __calculate_effective_shear_depth(d, cover, v_bar_dia, v_bar_cts, h_bar_dia):
     '''
     Determine effective shear depth of deep beam section
 
@@ -116,6 +116,7 @@ def __calculate_effective_shear_depth(d, cover, v_bar_area, v_bar_cts, h_bar_dia
     v_us (float): steel contribution to shear strength
 
     '''
+    v_bar_area = math.pi * v_bar_dia**2 / 4 # mm2
     flexural_tension_zone = d / 2 # assume half of the section goes into flexural tension
     d_s = d - 2*cover - 2*h_bar_dia - 2*(0.5 * v_bar_dia) # distance from first and last layers of vert reo
     num_v_bar_layers = math.ceil(d_s / v_bar_cts) # number of layers of vert reo
@@ -152,6 +153,10 @@ def column_shear(fc, cover, d, b, h, v_bar_dia, v_bar_cts, h_bar_dia, h_bar_cts)
     h_bar_dia (float): diameter of horizontal bars
     h_bar_cts (float): spacing of horizontal bars
 
+    Returns:
+    v_uc (float): concrete contribution to shear strength
+    v_us (float): steel contribution to shear strength
+
     '''
     # calculate reo area and reo rate in section
     fsy = 500 # MPa
@@ -164,7 +169,7 @@ def column_shear(fc, cover, d, b, h, v_bar_dia, v_bar_cts, h_bar_dia, h_bar_cts)
     rho = ( n_bars_v * v_bar_area / (d * b) ) * 100 # reinforcement rate
 
     # Concrete contribution to shear cl 8.2.4
-    dvy, ast_total = __calculate_effective_shear_depth(d, cover, v_bar_area, v_bar_cts, h_bar_dia)
+    dvy, ast_total = __calculate_effective_shear_depth(d, cover, v_bar_dia, v_bar_cts, h_bar_dia)
     dvs = d / 2 - dvy
     # strain_x = ( (m_star*1000000)/dvy + (v_star*1000) ) / ( 2*( dvs/ dvy * 200000 * ast_total))
 
@@ -235,7 +240,7 @@ def moment_magnification_factor(fc, bracing, d, b, n_c, n_star, m_star_top, m_st
     return magnification_factor
 
 
-def column_buckling_load(d, v_bar_dia, h_bar_dia, cover, m_ub, beta_d):
+def column_buckling_load(d, h, v_bar_dia, h_bar_dia, cover, m_ub, beta_d):
     '''
     Determine buckling load of column based on Section 10
 
@@ -260,7 +265,7 @@ def column_buckling_load(d, v_bar_dia, h_bar_dia, cover, m_ub, beta_d):
     return n_c
 
 
-def moment_interaction_design(fc, cover, d, b, v_bar_dia, v_bar_cts, h_bar_dia, bracing, n_star, m_star_xx_top, m_star_xx_bot, m_star_yy_top, m_star_yy_bot):
+def moment_interaction_design(fc, cover, d, b, h, v_bar_dia, v_bar_cts, h_bar_dia, bracing, n_star, m_star_xx_top, m_star_xx_bot, m_star_yy_top, m_star_yy_bot):
     '''
     Checks column using moment interaction diagram to Section 10
     
@@ -269,6 +274,7 @@ def moment_interaction_design(fc, cover, d, b, v_bar_dia, v_bar_cts, h_bar_dia, 
     cover (float): cover to reinforcement
     d (float): total depth of section
     b (float): total width of section
+    h (float): total height of section
     v_bar_dia (float): diameter of vertical bars
     v_bar_cts (float): spacing of vertical bars
     h_bar_dia (float): diameter of horizontal bars
@@ -308,10 +314,10 @@ def moment_interaction_design(fc, cover, d, b, v_bar_dia, v_bar_cts, h_bar_dia, 
         f_m = [x / 1000000 for x in f_results_list[1]]  # Convert to kNm
         return f_n, f_m
 
-    def calculate_magnified_moment(slenderness, mi_res, m_star, r, axis):
+    def calculate_magnified_moment(slenderness, h, mi_res, m_star, r, axis):
         if slenderness == 'Slender':
             balance_point = __extract_balance_point(mi_res)
-            n_c = column_buckling_load(d if axis == 'x' else b, v_bar_dia, h_bar_dia, cover, balance_point[0], beta_d=0.5)
+            n_c = column_buckling_load(d if axis == 'x' else b, h, v_bar_dia, h_bar_dia, cover, balance_point[0], beta_d=0.5)
             delta = moment_magnification_factor(fc, bracing, d if axis == 'x' else b, b if axis == 'x' else d, n_c, n_star, m_star_xx_bot if axis == 'x' else m_star_yy_bot, m_star_xx_bot if axis == 'x' else m_star_yy_bot, h, r, beta_d=0.5)
             return m_star * delta
         return m_star
@@ -342,8 +348,8 @@ def moment_interaction_design(fc, cover, d, b, v_bar_dia, v_bar_cts, h_bar_dia, 
     m_star_x, m_star_y = max(abs(m_star_xx_top), abs(m_star_xx_bot)), max(abs(m_star_yy_top), abs(m_star_yy_bot))
 
     # Apply moment magnification if column is slender
-    m_star_x = calculate_magnified_moment(slenderness_x, mi_res_xx, m_star_x, rx, 'x')
-    m_star_y = calculate_magnified_moment(slenderness_y, mi_res_yy, m_star_y, ry, 'y')
+    m_star_x = calculate_magnified_moment(slenderness_x, h, mi_res_xx, m_star_x, rx, 'x')
+    m_star_y = calculate_magnified_moment(slenderness_y, h, mi_res_yy, m_star_y, ry, 'y')
 
 
     # Check applied axial load and moment fall within diagram
@@ -357,78 +363,254 @@ def moment_interaction_design(fc, cover, d, b, v_bar_dia, v_bar_cts, h_bar_dia, 
     phi_n_y, phi_m_y = __find_intersection(f_m_y, f_n_y, m_star_y, n_star)
     capacity_y = (phi_m_y, phi_n_y)
 
-    # Plot the interaction curves and applied loads
-    fig, ax = plt.subplots()
-    ax.plot(f_m_x, f_n_x, label='Interaction Curve - About XX')
-    ax.plot(m_star_x, n_star, 'ro', label='Applied Load')
-    ax.plot([0, m_star_x], [0, n_star], 'b-', label='Load Line')
-    ax.plot(f_m_y, f_n_y, label='Interaction Curve - About YY')
-    ax.plot(m_star_y, n_star, 'ro', label='Applied Load')
-    ax.plot([0, m_star_y], [0, n_star], 'b-', label='Load Line')
-    if point_in_diagram_x:
-        ax.plot([m_star_x, phi_m_x], [n_star, phi_n_x], 'b--', label='Extension Line')
-    if point_in_diagram_y:
-        ax.plot([m_star_y, phi_m_y], [n_star, phi_n_y], 'b--', label='Extension Line')
-    ax.set_ylabel('Axial Load (kN)')
-    ax.set_xlabel('Moment (kNm)')
-    ax.set_title('Moment Interaction Diagram')
-    ax.legend()
-    ax.grid(True)
-
-    results = (pass_fail, capacity_x, capacity_y, fig)
+    # # Plot the interaction curves and applied loads
+    # fig, ax = plt.subplots()
+    # ax.plot(f_m_x, f_n_x, label='Interaction Curve - About XX')
+    # ax.plot(m_star_x, n_star, 'ro', label='Applied Load')
+    # ax.plot([0, m_star_x], [0, n_star], 'b-', label='Load Line')
+    # ax.plot(f_m_y, f_n_y, label='Interaction Curve - About YY')
+    # ax.plot(m_star_y, n_star, 'ro', label='Applied Load')
+    # ax.plot([0, m_star_y], [0, n_star], 'b-', label='Load Line')
+    # if point_in_diagram_x:
+    #     ax.plot([m_star_x, phi_m_x], [n_star, phi_n_x], 'b--', label='Extension Line')
+    # if point_in_diagram_y:
+    #     ax.plot([m_star_y, phi_m_y], [n_star, phi_n_y], 'b--', label='Extension Line')
+    # ax.set_ylabel('Axial Load (kN)')
+    # ax.set_xlabel('Moment (kNm)')
+    # ax.set_title('Moment Interaction Diagram')
+    # ax.legend()
+    # ax.grid(True)
+    # add fig to results if you want to show plot again
+    results = (pass_fail, capacity_x, capacity_y)
     return results
 
+def design_etabs_pier_as_column(pier:dict, eq_env_1:str, eq_env_2:str, wind_env:str, vertical_spacing:float, horizontal_spacing:float):
+    
+    # Define bar sizes
+    bar_sizes = [12, 16, 20, 24, 28, 32, 36, 40]
+    
+    # Extract pier dimensions
+    d = pier['Width Bot'] # Length of pier
+    b = pier['Thickness Bot'] # Thcikness of pier
+    h = pier['Story Height'] # Height of pier
+    fc = pier['fc'] # Concrete strength
 
-# input parameters
-fc = 50
-d = 2000
-b = 250
-h = 4200
-v_bar_dia = 28
-h_bar_dia = 20
-cover = 30
-v_bar_cts = 200
-h_bar_cts = 200
-n_star = 3000
-m3_top = 3000
-m3_bot = -1000
-m2_top = -100
-m2_bot = 100
-v_star = 500
-mu_sp = 2.6
+    # Determine design shear force
+    design_v_star = max(
+        abs(pier[eq_env_2 + ' Top Max']['v2']),
+        abs(pier[eq_env_2 + ' Bottom Max']['v2']),
+        abs(pier[eq_env_2 + ' Top Min']['v2']),
+        abs(pier[eq_env_2 + ' Bottom Min']['v2']),
+        abs(pier[wind_env + ' Top Max']['v2']),
+        abs(pier[wind_env + ' Bottom Max']['v2']),
+        abs(pier[wind_env + ' Top Min']['v2']),
+        abs(pier[wind_env + ' Bottom Min']['v2'])
+    ) / 1000
 
-# Check column interaction diagram
-moment_interaction_results = moment_interaction_design(
-    fc, cover, d, b, v_bar_dia, v_bar_cts, h_bar_dia, 'Unbraced', n_star, m3_top, m3_bot, m2_top, m2_bot
-)
+    # Determine design moments in strong and weak directions and corresponding moments at the other end
+    design_moment_x_x = max(
+        abs(pier[eq_env_1 + ' Top Max']['m3']),
+        abs(pier[eq_env_1 + ' Bottom Max']['m3']),
+        abs(pier[eq_env_1 + ' Top Min']['m3']),
+        abs(pier[eq_env_1 + ' Bottom Min']['m3']),
+        abs(pier[wind_env + ' Top Max']['m3']),
+        abs(pier[wind_env + ' Bottom Max']['m3']),
+        abs(pier[wind_env + ' Top Min']['m3']),
+        abs(pier[wind_env + ' Bottom Min']['m3'])
+    )
 
-# Check column shear capacity
-v_uc, v_us = column_shear(fc, cover, d, b, h, v_bar_dia, v_bar_cts, h_bar_dia, h_bar_cts)
+    design_moment_y_y = max(
+        abs(pier[eq_env_1 + ' Top Max']['m2']),
+        abs(pier[eq_env_1 + ' Bottom Max']['m2']),
+        abs(pier[eq_env_1 + ' Top Min']['m2']),
+        abs(pier[eq_env_1 + ' Bottom Min']['m2']),
+        abs(pier[wind_env + ' Top Max']['m2']),
+        abs(pier[wind_env + ' Bottom Max']['m2']),
+        abs(pier[wind_env + ' Top Min']['m2']),
+        abs(pier[wind_env + ' Bottom Min']['m2'])
+    )
 
-print('Column Design Results')
-print('---------------------')
-print('Column Dimensions: ' + str(b) + ' x ' + str(d) + ' mm')
-print('Concrete Strength: ' + str(fc) + ' MPa')
-print('Vertical Bar Diameter: ' + str(v_bar_dia) + ' mm')
-print('Vertical Bar Spacing: ' + str(v_bar_cts) + ' mm')
-print('Horizontal Bar Diameter: ' + str(h_bar_dia) + ' mm')
-print('Horizontal Bar Spacing: ' + str(h_bar_cts) + ' mm')
-print('Cover to Reinforcement: ' + str(cover) + ' mm')
-print('Axial Load: ' + str(n_star) + ' kN')
+    def get_design_moments(moment, env, top_max, bot_max, top_min, bot_min, moment_key):
+        if moment == abs(pier[env + top_max][moment_key]):
+            return abs(pier[env + top_max][moment_key]), abs(pier[env + bot_max][moment_key])
+        elif moment == abs(pier[env + bot_max][moment_key]):
+            return abs(pier[env + bot_max][moment_key]), abs(pier[env + top_max][moment_key])
+        elif moment == abs(pier[env + top_min][moment_key]):
+            return abs(pier[env + top_min][moment_key]), abs(pier[env + bot_min][moment_key])
+        elif moment == abs(pier[env + bot_min][moment_key]):
+            return abs(pier[env + bot_min][moment_key]), abs(pier[env + top_min][moment_key])
 
-print('Results X')
-print('Result X: ' + moment_interaction_results[0][0]) # pass or fail
-print('Phi N X: ' + str(round(moment_interaction_results[1][1], 1))) # intersection with N
-print('Phi M X: ' + str(round(moment_interaction_results[1][0], 1))) # intersection with M
+    design_m_star_top_xx, design_m_star_bot_xx = get_design_moments(design_moment_x_x, eq_env_1, ' Top Max', ' Bottom Max', ' Top Min', ' Bottom Min', 'm3')
+    design_m_star_top_yy, design_m_star_bot_yy = get_design_moments(design_moment_y_y, eq_env_1, ' Top Max', ' Bottom Max', ' Top Min', ' Bottom Min', 'm2')
 
-print('Results X')
-print('Result Y: ' + moment_interaction_results[0][1]) # pass or fail
-print('Phi N Y: ' + str(round(moment_interaction_results[2][1], 1))) # intersection with N
-print('Phi M Y: ' + str(round(moment_interaction_results[2][0], 1))) # intersection with M
+    design_m_star_top_xx, design_m_star_bot_xx = get_design_moments(design_moment_x_x, eq_env_1, ' Top Max', ' Bottom Max', ' Top Min', ' Bottom Min', 'm3')
+    design_m_star_top_yy, design_m_star_bot_yy = get_design_moments(design_moment_y_y, eq_env_1, ' Top Max', ' Bottom Max', ' Top Min', ' Bottom Min', 'm2')
 
-shear_pass_fail = 'Pass' if 0.7*v_uc + 0.7*v_us > v_star else 'Fail'
-print('Shear Capacity Results: ' + shear_pass_fail)
-print('Concrete Shear Capacity: ' + str(round(v_uc, 1)) + ' kN') # concrete shear capacity
-print('Steel Shear Capacity: ' + str(round(v_us, 1)) + ' kN') # steel shear capacity
+    design_m_star_top_xx = design_m_star_top_xx / 1e6
+    design_m_star_bot_xx = design_m_star_bot_xx / 1e6 
+    design_m_star_top_yy = design_m_star_top_yy / 1e6
+    design_m_star_bot_yy = design_m_star_bot_yy / 1e6
 
-plt.show()
+    # Design axial load
+    p_max = max(pier[eq_env_1 + ' Top Max']['p'], pier[eq_env_1 + ' Bottom Max']['p']) / 1000
+    p_max_tension = 0 if p_max < 0 else p_max
+    p_max_compression = abs (min(pier[eq_env_1 + ' Top Min']['p'], pier[eq_env_1 + ' Bottom Min']['p']) / 1000 )
+
+
+    # Design pier as a column under compression load
+    v_bar_size_1 = 0
+
+    phi_mu_comp_x_x = 0
+    phi_nu_comp_x_x = 0
+    phi_mu_tens_x_x = 0
+    phi_nu_tens_x_x = 0
+
+    phi_mu_comp_y_y = 0
+    phi_nu_comp_y_y = 0
+    phi_mu_tens_y_y = 0
+    phi_nu_tens_y_y = 0
+
+    # Check each bar size and if it works, end the for loop
+    for bar_size in bar_sizes:
+        # Moment interaction check with compression load
+        moment_interaction_results_p_min = moment_interaction_design(
+            fc=fc,
+            cover=30,
+            d=d,
+            b=b,
+            h=h,
+            v_bar_dia=bar_size,
+            v_bar_cts=vertical_spacing,
+            h_bar_dia=12,
+            bracing='Unbraced',
+            n_star=p_max_compression,
+            m_star_xx_top=design_m_star_top_xx,
+            m_star_xx_bot=design_m_star_bot_xx,
+            m_star_yy_top=design_m_star_top_yy,
+            m_star_yy_bot=design_m_star_bot_yy,
+        )
+
+        if moment_interaction_results_p_min[0][0] == 'Pass' and moment_interaction_results_p_min[0][1] == 'Pass':
+            v_bar_size_1 = bar_size
+            phi_mu_comp_x_x = moment_interaction_results_p_min[1][0]
+            phi_nu_comp_x_x = moment_interaction_results_p_min[1][1]
+
+            phi_mu_comp_y_y = moment_interaction_results_p_min[2][0]
+            phi_nu_comp_y_y = moment_interaction_results_p_min[2][1]
+            break
+
+    # Determine pertentage capacity
+    safety_factor_x_x = max(design_m_star_top_xx, design_m_star_bot_xx) / phi_mu_comp_x_x
+    safety_factor_y_y = max(design_m_star_top_yy, design_m_star_bot_yy) / phi_mu_comp_y_y
+
+    # Determine in_plane shear capacity of pier
+    vuc = 0
+    vus = 0
+    phi_vu = 0
+    for bar_size in bar_sizes:
+        # Check if bar size works for in-plane shear
+        vuc, vus = column_shear(
+            fc=fc,
+            cover=30,
+            d=d,
+            b=b,
+            h=h,
+            v_bar_dia=v_bar_size_1,
+            v_bar_cts=vertical_spacing,
+            h_bar_dia=bar_size,
+            h_bar_cts=horizontal_spacing,
+        )
+
+        phi_vu = 0.65 * (vuc + vus)
+        if phi_vu >= design_v_star:
+            h_bar_size = bar_size
+            break
+
+    safety_factor_shear =  design_v_star / phi_vu
+
+    # Add design data to designed pier dictionary
+    designed_pier = {
+    'Pier': pier['Pier Name'],
+    'Story': pier['Story Name'],
+    'Lw (mm)': d,
+    'tw (mm)': b,
+    'Hw (mm)': h,
+    'fc (MPa)': fc,
+    'P* Tension (kN)': p_max_tension,
+    'P* Compression (kN)': p_max_compression,
+    'M* Top X-X (kNm)': design_m_star_top_xx,
+    'M* Bot X-X (kNm)': design_m_star_bot_xx,
+    'M* Top Y-Y (kNm)': design_m_star_top_yy,
+    'M* Bot Y-Y (kNm)': design_m_star_bot_yy,
+    'V Bar Size': v_bar_size_1,
+    'Phi Mu X-X': phi_mu_comp_x_x,
+    'Phi Nu X-X': phi_nu_comp_x_x,
+    'Safety Factor X-X': safety_factor_x_x,
+    'Phi Mu Y-Y': phi_mu_comp_y_y,
+    'Phi Nu Y-Y': phi_nu_comp_y_y,
+    'Safety Factor Y-Y': safety_factor_y_y,
+    'V* (kN)': design_v_star,
+    'H Bar Size': h_bar_size,
+    'Phi Vu': phi_vu,
+    'Safety Factor Shear': safety_factor_shear
+    }
+
+
+    return designed_pier
+
+
+
+# print(pier)
+# # # input parameters
+# fc = 50
+# d = 2000
+# b = 250
+# h = 4200
+# v_bar_dia = 28
+# h_bar_dia = 20
+# cover = 30
+# v_bar_cts = 200
+# h_bar_cts = 200
+# n_star = 3000
+# m3_top = -5000
+# m3_bot = 0
+# m2_top = 0
+# m2_bot = -200
+# v_star = 500
+# mu_sp = 2.6
+
+# # Check column interaction diagram
+# moment_interaction_results = moment_interaction_design(
+#     fc, cover, d, b, h, v_bar_dia, v_bar_cts, h_bar_dia, 'Unbraced', n_star, m3_top, m3_bot, m2_top, m2_bot
+# )
+
+# # Check column shear capacity
+# v_uc, v_us = column_shear(fc, cover, d, b, h, v_bar_dia, v_bar_cts, h_bar_dia, h_bar_cts)
+
+# print('Column Design Results')
+# print('---------------------')
+# print('Column Dimensions: ' + str(b) + ' x ' + str(d) + ' mm')
+# print('Concrete Strength: ' + str(fc) + ' MPa')
+# print('Vertical Bar Diameter: ' + str(v_bar_dia) + ' mm')
+# print('Vertical Bar Spacing: ' + str(v_bar_cts) + ' mm')
+# print('Horizontal Bar Diameter: ' + str(h_bar_dia) + ' mm')
+# print('Horizontal Bar Spacing: ' + str(h_bar_cts) + ' mm')
+# print('Cover to Reinforcement: ' + str(cover) + ' mm')
+# print('Axial Load: ' + str(n_star) + ' kN')
+
+# print('Results X')
+# print('Result X: ' + moment_interaction_results[0][0]) # pass or fail
+# print('Phi N X: ' + str(round(moment_interaction_results[1][1], 1))) # intersection with N
+# print('Phi M X: ' + str(round(moment_interaction_results[1][0], 1))) # intersection with M
+
+# print('Results X')
+# print('Result Y: ' + moment_interaction_results[0][1]) # pass or fail
+# print('Phi N Y: ' + str(round(moment_interaction_results[2][1], 1))) # intersection with N
+# print('Phi M Y: ' + str(round(moment_interaction_results[2][0], 1))) # intersection with M
+
+# shear_pass_fail = 'Pass' if 0.7*v_uc + 0.7*v_us > v_star else 'Fail'
+# print('Shear Capacity Results: ' + shear_pass_fail)
+# print('Concrete Shear Capacity: ' + str(round(v_uc, 1)) + ' kN') # concrete shear capacity
+# print('Steel Shear Capacity: ' + str(round(v_us, 1)) + ' kN') # steel shear capacity
+
+# plt.show()

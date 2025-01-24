@@ -45,13 +45,13 @@ class etabs_api:
         pier_forces = self.get_pier_forces(load_cases)
 
         # Create a dictionary for quick lookup of story heights and material properties
-        story_heights = {story["Story Name"]: round(story["Story Height"] * 1000, 0) for story in self.story_data}
+        story_heights = {story["Story Name"]: round(story["Story Height"], 0) for story in self.story_data}
         material_fc = {material["Mat Name"]: material["fc"] for material in self.concrete_material_properties}
 
         for section_property in self.pier_section_properties:
             section_property["Story Height"] = story_heights.get(section_property["Story Name"], 0)
             section_property["fc"] = material_fc.get(section_property["Mat Prop"], 0)
-
+            pier_force = {}
             for pier_force in pier_forces:
                 if section_property["Story Name"] == pier_force["Story Name"] and section_property["Pier Name"] == pier_force["Pier Name"]:
                     key = f"{pier_force['Load Case']} {pier_force['Location']} {pier_force['Step Type']}"
@@ -74,12 +74,14 @@ class etabs_api:
             if result == 1:
                 self.sap_model.Results.Setup.DeselectAllCasesAndCombosForOutput()
                 result = self.sap_model.Results.Setup.SetComboSelectedForOutput(case)
-                pier_force = self.sap_model.Results.PierForce()
+            pier_force = self.sap_model.Results.PierForce()
             # Convert the tuple to a set to get unique strings
-            unique_strings = set(pier_force[2])
-            num_unique_piers = len(unique_strings)
+            unique_piers = set(pier_force[2])
+            unique_levels = set(pier_force[1])
+            num_unique_piers = len(unique_piers)
+            num_unique_levels = len(unique_levels)
             max_min_order = ['Max', 'Max', 'Min', 'Min']
-            for k in range(num_unique_piers):
+            for k in range(num_unique_piers * num_unique_levels):
                 for j in range(len(max_min_order)):
                     i = k * len(max_min_order) + j
                     pier_force_dict = {
