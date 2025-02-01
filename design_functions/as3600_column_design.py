@@ -265,7 +265,7 @@ def column_buckling_load(d, h, v_bar_dia, h_bar_dia, cover, m_ub, beta_d):
     return n_c
 
 
-def moment_interaction_design(fc, cover, d, b, h, v_bar_dia, v_bar_cts, h_bar_dia, bracing, n_star, m_star_xx_top, m_star_xx_bot, m_star_yy_top, m_star_yy_bot):
+def moment_interaction_design(fc, cover, d, b, h, v_bar_dia, v_bar_cts, h_bar_dia, bracing, n_star, m_star_xx_top, m_star_xx_bot, m_star_yy_top, m_star_yy_bot, check_both_axes):
     '''
     Checks column using moment interaction diagram to Section 10
     
@@ -284,6 +284,7 @@ def moment_interaction_design(fc, cover, d, b, h, v_bar_dia, v_bar_cts, h_bar_di
     m_star_xx_bot (float): applied moment at bottom of column about x axis
     m_star_yy_top (float): applied moment at top of column about y axis
     m_star_yy_bot (float): applied moment at bottom of column about y axis
+    check_both_axes (bool): True if weak axis is to be checked, otherwise False
 
     Returns:
     results (tuple): tuple containing the following:
@@ -323,16 +324,15 @@ def moment_interaction_design(fc, cover, d, b, h, v_bar_dia, v_bar_cts, h_bar_di
         return m_star
 
     # Determine if column is short or slender - Cl 10.2
-    rx, ry = 0.3 * d, 0.3 * b  # Radius of gyration - Cl 10.5.2
+    rx = 0.3 * d # Radius of gyration - Cl 10.5.2
     slenderness_x = 'Short' if h / rx <= 22 else 'Slender'
-    slenderness_y = 'Short' if h / ry <= 22 else 'Slender'
 
     # Calculate bar layout and geometry
     n_bars_x, n_bars_y = 2, int(round((d - 2 * cover - 2 * h_bar_dia) / v_bar_cts, 0))
 
     # Set up moment interaction diagram using concreteproperties library
     design_code = AS3600()
-    concrete = design_code.create_concrete_material(compressive_strength=50)
+    concrete = design_code.create_concrete_material(compressive_strength=fc)
     steel = design_code.create_steel_material()
 
     # Create and process moment interaction results for both axes
@@ -340,28 +340,39 @@ def moment_interaction_design(fc, cover, d, b, h, v_bar_dia, v_bar_cts, h_bar_di
     f_mi_res_xx, mi_res_xx, _ = get_moment_interaction_results(conc_sec_x)
     f_n_x, f_m_x = process_results(f_mi_res_xx)
 
-    conc_sec_y = create_concrete_section(d, b, n_bars_y, n_bars_x)
-    f_mi_res_yy, mi_res_yy, _ = get_moment_interaction_results(conc_sec_y)
-    f_n_y, f_m_y = process_results(f_mi_res_yy)
-
     # Determine max applied moment in each direction
-    m_star_x, m_star_y = max(abs(m_star_xx_top), abs(m_star_xx_bot)), max(abs(m_star_yy_top), abs(m_star_yy_bot))
+    m_star_x = max(abs(m_star_xx_top), abs(m_star_xx_bot))
 
     # Apply moment magnification if column is slender
     m_star_x = calculate_magnified_moment(slenderness_x, h, mi_res_xx, m_star_x, rx, 'x')
-    m_star_y = calculate_magnified_moment(slenderness_y, h, mi_res_yy, m_star_y, ry, 'y')
-
 
     # Check applied axial load and moment fall within diagram
     point_in_diagram_x = __is_point_inside_curve(f_m_x, f_n_x, n_star, m_star_x)
-    point_in_diagram_y = __is_point_inside_curve(f_m_y, f_n_y, n_star, m_star_y)
-    pass_fail = ('Pass' if point_in_diagram_x else 'Fail', 'Pass' if point_in_diagram_y else 'Fail')
+    pass_fail_x = 'Pass' if point_in_diagram_x else 'Fail'
 
     # Find the intersection points
     phi_n_x, phi_m_x = __find_intersection(f_m_x, f_n_x, m_star_x, n_star)
     capacity_x = (phi_m_x, phi_n_x)
-    phi_n_y, phi_m_y = __find_intersection(f_m_y, f_n_y, m_star_y, n_star)
-    capacity_y = (phi_m_y, phi_n_y)
+
+    # Repeat all calculations if check_weak_axis is checked
+    if check_both_axes == True:
+        ry = 0.3 * b  # Radius of gyration - Cl 10.5.2
+        slenderness_y = 'Short' if h / ry <= 22 else 'Slender' # Determine if column is short or slender - Cl 10.2
+        conc_sec_y = create_concrete_section(d, b, n_bars_y, n_bars_x) # Create concrete section about y axis
+        f_mi_res_yy, mi_res_yy, _ = get_moment_interaction_results(conc_sec_y) # Moment interaction results about y axis
+        f_n_y, f_m_y = process_results(f_mi_res_yy)
+        m_star_y = max(abs(m_star_yy_top), abs(m_star_yy_bot)) # Grab max design moment about y axis
+        m_star_y = calculate_magnified_moment(slenderness_y, h, mi_res_yy, m_star_y, ry, 'y') # Calculate magnified moment about y axis
+        point_in_diagram_y = __is_point_inside_curve(f_m_y, f_n_y, n_star, m_star_y) # Determine if point inside diagram
+        pass_fail_y = 'Pass' if point_in_diagram_y else 'Fail'
+        phi_n_y, phi_m_y = __find_intersection(f_m_y, f_n_y, m_star_y, n_star)
+        capacity_y = (phi_m_y, phi_n_y) # Find capacity about y axis
+        results = ([pass_fail_x, pass_fail_y], capacity_x, capacity_y)
+        return results
+
+    else:
+        results = (pass_fail_x, capacity_x)
+        return results
 
     # # Plot the interaction curves and applied loads
     # fig, ax = plt.subplots()
@@ -381,10 +392,9 @@ def moment_interaction_design(fc, cover, d, b, h, v_bar_dia, v_bar_cts, h_bar_di
     # ax.legend()
     # ax.grid(True)
     # add fig to results if you want to show plot again
-    results = (pass_fail, capacity_x, capacity_y)
-    return results
 
-def design_etabs_pier_as_column(pier:dict, eq_env_1:str, eq_env_2:str, wind_env:str, vertical_spacing:float, horizontal_spacing:float):
+
+def design_etabs_pier_as_column(pier:dict, eq_env_1:str, eq_env_2:str, wind_env:str, vertical_spacing:float, horizontal_spacing:float, design_both_axes:bool):
     
     # Define bar sizes
     bar_sizes = [12, 16, 20, 24, 28, 32, 36, 40]
@@ -419,17 +429,6 @@ def design_etabs_pier_as_column(pier:dict, eq_env_1:str, eq_env_2:str, wind_env:
         abs(pier[wind_env + ' Bottom Min']['m3'])
     )
 
-    design_moment_y_y = max(
-        abs(pier[eq_env_1 + ' Top Max']['m2']),
-        abs(pier[eq_env_1 + ' Bottom Max']['m2']),
-        abs(pier[eq_env_1 + ' Top Min']['m2']),
-        abs(pier[eq_env_1 + ' Bottom Min']['m2']),
-        abs(pier[wind_env + ' Top Max']['m2']),
-        abs(pier[wind_env + ' Bottom Max']['m2']),
-        abs(pier[wind_env + ' Top Min']['m2']),
-        abs(pier[wind_env + ' Bottom Min']['m2'])
-    )
-
     def get_design_moments(moment, env, top_max, bot_max, top_min, bot_min, moment_key):
         if moment == abs(pier[env + top_max][moment_key]):
             return abs(pier[env + top_max][moment_key]), abs(pier[env + bot_max][moment_key])
@@ -441,30 +440,26 @@ def design_etabs_pier_as_column(pier:dict, eq_env_1:str, eq_env_2:str, wind_env:
             return abs(pier[env + bot_min][moment_key]), abs(pier[env + top_min][moment_key])
 
     design_m_star_top_xx, design_m_star_bot_xx = get_design_moments(design_moment_x_x, eq_env_1, ' Top Max', ' Bottom Max', ' Top Min', ' Bottom Min', 'm3')
-    design_m_star_top_yy, design_m_star_bot_yy = get_design_moments(design_moment_y_y, eq_env_1, ' Top Max', ' Bottom Max', ' Top Min', ' Bottom Min', 'm2')
-
-    design_m_star_top_xx, design_m_star_bot_xx = get_design_moments(design_moment_x_x, eq_env_1, ' Top Max', ' Bottom Max', ' Top Min', ' Bottom Min', 'm3')
-    design_m_star_top_yy, design_m_star_bot_yy = get_design_moments(design_moment_y_y, eq_env_1, ' Top Max', ' Bottom Max', ' Top Min', ' Bottom Min', 'm2')
+    design_m_star_top_yy = 0
+    design_m_star_bot_yy = 0
 
     design_m_star_top_xx = design_m_star_top_xx / 1e6
     design_m_star_bot_xx = design_m_star_bot_xx / 1e6 
-    design_m_star_top_yy = design_m_star_top_yy / 1e6
-    design_m_star_bot_yy = design_m_star_bot_yy / 1e6
 
     # Design axial load
     p_max = max(pier[eq_env_1 + ' Top Max']['p'], pier[eq_env_1 + ' Bottom Max']['p']) / 1000
     p_max_tension = 0 if p_max < 0 else p_max
     p_max_compression = abs (min(pier[eq_env_1 + ' Top Min']['p'], pier[eq_env_1 + ' Bottom Min']['p']) / 1000 )
 
-
     # Design pier as a column under compression load
     v_bar_size_1 = 0
 
+    # Initialise results of capacity
     phi_mu_comp_x_x = 0
     phi_nu_comp_x_x = 0
     phi_mu_tens_x_x = 0
     phi_nu_tens_x_x = 0
-
+    
     phi_mu_comp_y_y = 0
     phi_nu_comp_y_y = 0
     phi_mu_tens_y_y = 0
@@ -488,20 +483,52 @@ def design_etabs_pier_as_column(pier:dict, eq_env_1:str, eq_env_2:str, wind_env:
             m_star_xx_bot=design_m_star_bot_xx,
             m_star_yy_top=design_m_star_top_yy,
             m_star_yy_bot=design_m_star_bot_yy,
+            check_both_axes=design_both_axes
         )
 
-        if moment_interaction_results_p_min[0][0] == 'Pass' and moment_interaction_results_p_min[0][1] == 'Pass':
-            v_bar_size_1 = bar_size
-            phi_mu_comp_x_x = moment_interaction_results_p_min[1][0]
-            phi_nu_comp_x_x = moment_interaction_results_p_min[1][1]
-
-            phi_mu_comp_y_y = moment_interaction_results_p_min[2][0]
-            phi_nu_comp_y_y = moment_interaction_results_p_min[2][1]
+        if design_both_axes == True:
+            if moment_interaction_results_p_min[0][0] == 'Pass' and moment_interaction_results_p_min[0][1] == 'Pass':
+                v_bar_size_1 = bar_size
+                phi_mu_comp_x_x = moment_interaction_results_p_min[1][0]
+                phi_nu_comp_x_x = moment_interaction_results_p_min[1][1]
+                
+                phi_mu_comp_y_y = moment_interaction_results_p_min[2][0]
+                phi_nu_comp_y_y = moment_interaction_results_p_min[2][1]
+                break
             break
+        else:
+            if moment_interaction_results_p_min[0] == 'Pass':
+                v_bar_size_1 = bar_size
+                phi_mu_comp_x_x = moment_interaction_results_p_min[1][0]
+                phi_nu_comp_x_x = moment_interaction_results_p_min[1][1]
+                break
+            break
+
 
     # Determine pertentage capacity
     safety_factor_x_x = max(design_m_star_top_xx, design_m_star_bot_xx) / phi_mu_comp_x_x
-    safety_factor_y_y = max(design_m_star_top_yy, design_m_star_bot_yy) / phi_mu_comp_y_y
+
+    # WEAK AXIS
+    # -------------------------------------------------------------------------------------------------
+    # Repeat calculations if check both axes is true
+    if design_both_axes == True:
+        design_moment_y_y = max(
+            abs(pier[eq_env_1 + ' Top Max']['m2']),
+            abs(pier[eq_env_1 + ' Bottom Max']['m2']),
+            abs(pier[eq_env_1 + ' Top Min']['m2']),
+            abs(pier[eq_env_1 + ' Bottom Min']['m2']),
+            abs(pier[wind_env + ' Top Max']['m2']),
+            abs(pier[wind_env + ' Bottom Max']['m2']),
+            abs(pier[wind_env + ' Top Min']['m2']),
+            abs(pier[wind_env + ' Bottom Min']['m2'])
+        )
+
+        design_m_star_top_yy, design_m_star_bot_yy = get_design_moments(design_moment_y_y, eq_env_1, ' Top Max', ' Bottom Max', ' Top Min', ' Bottom Min', 'm2')
+        design_m_star_top_yy = design_m_star_top_yy / 1e6
+        design_m_star_bot_yy = design_m_star_bot_yy / 1e6
+        safety_factor_y_y = max(design_m_star_top_yy, design_m_star_bot_yy) / phi_mu_comp_y_y        
+
+    # -------------------------------------------------------------------------------------------------
 
     # Determine in_plane shear capacity of pier
     vuc = 0
@@ -529,38 +556,57 @@ def design_etabs_pier_as_column(pier:dict, eq_env_1:str, eq_env_2:str, wind_env:
     safety_factor_shear =  design_v_star / phi_vu
 
     # Add design data to designed pier dictionary
-    designed_pier = {
-    'Pier': pier['Pier Name'],
-    'Story': pier['Story Name'],
-    'Lw (mm)': d,
-    'tw (mm)': b,
-    'Hw (mm)': h,
-    'fc (MPa)': fc,
-    'P* Tension (kN)': p_max_tension,
-    'P* Compression (kN)': p_max_compression,
-    'M* Top X-X (kNm)': design_m_star_top_xx,
-    'M* Bot X-X (kNm)': design_m_star_bot_xx,
-    'M* Top Y-Y (kNm)': design_m_star_top_yy,
-    'M* Bot Y-Y (kNm)': design_m_star_bot_yy,
-    'V Bar Size': v_bar_size_1,
-    'Phi Mu X-X': phi_mu_comp_x_x,
-    'Phi Nu X-X': phi_nu_comp_x_x,
-    'Safety Factor X-X': safety_factor_x_x,
-    'Phi Mu Y-Y': phi_mu_comp_y_y,
-    'Phi Nu Y-Y': phi_nu_comp_y_y,
-    'Safety Factor Y-Y': safety_factor_y_y,
-    'V* (kN)': design_v_star,
-    'H Bar Size': h_bar_size,
-    'Phi Vu': phi_vu,
-    'Safety Factor Shear': safety_factor_shear
-    }
+    designed_pier = {}
+    designed_pier['Pier'] = pier['Pier Name']
+    designed_pier['Story']= pier['Story Name']
+    designed_pier['Lw (mm)'] = round(d, 0)
+    designed_pier['tw (mm)'] = round(b, 0)
+    designed_pier['Hw (mm)'] = round(h, 0)
+    designed_pier['fc (MPa)'] = round(fc, 0)
+    designed_pier['V* (kN)'] = round(design_v_star, 0)
+    designed_pier['Phi Vu'] = round(phi_vu, 0)
+    designed_pier['H Bar Size'] = h_bar_size
+    designed_pier['Safety Factor Shear'] = round(safety_factor_shear, 2)
+    designed_pier['P* Tension (kN)'] = round(p_max_tension, 0)
+    designed_pier['P* Compression (kN)'] = round(p_max_compression, 0)
+    designed_pier['V Bar Size'] = v_bar_size_1
+    designed_pier['M* Top X-X (kNm)'] = round(design_m_star_top_xx, 0)
+    designed_pier['M* Bot X-X (kNm)'] = round(design_m_star_bot_xx, 0)
+    designed_pier['Phi Mu X-X'] = round(phi_mu_comp_x_x, 0)
+    designed_pier['Phi Nu X-X'] = round(phi_nu_comp_x_x, 0)
+    designed_pier['Safety Factor X-X'] = round(safety_factor_x_x, 2)
 
+    if design_both_axes == True:
+        designed_pier['M* Top Y-Y (kNm)'] = round(design_m_star_top_yy, 0)
+        designed_pier['M* Bot Y-Y (kNm)'] = round(design_m_star_bot_yy, 0)
+        designed_pier['Phi Mu Y-Y'] = round(phi_mu_comp_y_y, 0)
+        designed_pier['Phi Nu Y-Y'] = round(phi_nu_comp_y_y, 0)
+        designed_pier['Safety Factor Y-Y'] = round(safety_factor_y_y, 2)
 
     return designed_pier
 
 
+def design_all_piers(piers:list[dict], eq_env_1:str, eq_env_2:str, wind_env:str, vertical_spacing:float, horizontal_spacing:float):
+    # Initialise list to store designed piers
+    designed_piers = []
 
-# print(pier)
+    # Iterate through all piers and design them
+    for pier in piers:
+        designed_pier = design_etabs_pier_as_column(
+            pier, 
+            eq_env_1, 
+            eq_env_2, 
+            wind_env, 
+            vertical_spacing, 
+            horizontal_spacing,
+            False
+            )
+        designed_piers.append(designed_pier)
+
+    # Create a dataframe to store the results
+    df = pd.DataFrame(designed_piers)
+    return df
+
 # # # input parameters
 # fc = 50
 # d = 2000
@@ -581,7 +627,7 @@ def design_etabs_pier_as_column(pier:dict, eq_env_1:str, eq_env_2:str, wind_env:
 
 # # Check column interaction diagram
 # moment_interaction_results = moment_interaction_design(
-#     fc, cover, d, b, h, v_bar_dia, v_bar_cts, h_bar_dia, 'Unbraced', n_star, m3_top, m3_bot, m2_top, m2_bot
+#     fc, cover, d, b, h, v_bar_dia, v_bar_cts, h_bar_dia, 'Unbraced', n_star, m3_top, m3_bot, m2_top, m2_bot, True
 # )
 
 # # Check column shear capacity
@@ -613,4 +659,4 @@ def design_etabs_pier_as_column(pier:dict, eq_env_1:str, eq_env_2:str, wind_env:
 # print('Concrete Shear Capacity: ' + str(round(v_uc, 1)) + ' kN') # concrete shear capacity
 # print('Steel Shear Capacity: ' + str(round(v_us, 1)) + ' kN') # steel shear capacity
 
-# plt.show()
+# # plt.show()

@@ -32,7 +32,7 @@ piers = etabs_api.get_piers(load_cases=load_cases)
 designed_piers = []
 for pier in piers:
 
-    designed_pier = as3600_column_design.design_etabs_pier_as_column(pier, eq_env_1, eq_env_2, wind_env, vertical_spacing, horizontal_spacing)
+    designed_pier = as3600_column_design.design_etabs_pier_as_column(pier, eq_env_1, eq_env_2, wind_env, vertical_spacing, horizontal_spacing, False)
     designed_piers.append(designed_pier)
 
 df = pd.DataFrame(designed_piers)

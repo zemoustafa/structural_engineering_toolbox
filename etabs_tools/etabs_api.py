@@ -75,27 +75,27 @@ class etabs_api:
                 self.sap_model.Results.Setup.DeselectAllCasesAndCombosForOutput()
                 result = self.sap_model.Results.Setup.SetComboSelectedForOutput(case)
             pier_force = self.sap_model.Results.PierForce()
-            # Convert the tuple to a set to get unique strings
-            unique_piers = set(pier_force[2])
-            unique_levels = set(pier_force[1])
-            num_unique_piers = len(unique_piers)
-            num_unique_levels = len(unique_levels)
+
             max_min_order = ['Max', 'Max', 'Min', 'Min']
-            for k in range(num_unique_piers * num_unique_levels):
-                for j in range(len(max_min_order)):
-                    i = k * len(max_min_order) + j
+
+            number_iterations = pier_force[0]  # Total number of iterations
+            number_piers = number_iterations // len(max_min_order)  # Number of unique piers
+
+            for j in range(number_piers):  # Loop over each unique pier
+                for k in range(len(max_min_order)):  # Loop over Max/Min order
+                    i = j * len(max_min_order) + k  # Correct index calculation
                     pier_force_dict = {
-                    "Story Name": pier_force[1][i],
-                    "Pier Name": pier_force[2][i],
-                    "Load Case": pier_force[3][i],
-                    "Step Type": max_min_order[j],
-                    "Location": pier_force[4][i],
-                    "p": pier_force[5][i],
-                    "v2": pier_force[6][i],
-                    "v3": pier_force[7][i],
-                    "t": pier_force[8][i],
-                    "m2": pier_force[9][i],
-                    "m3": pier_force[10][i],
+                        "Story Name": pier_force[1][i],
+                        "Pier Name": pier_force[2][i],
+                        "Load Case": pier_force[3][i],
+                        "Step Type": max_min_order[k],
+                        "Location": pier_force[4][i],
+                        "p": pier_force[5][i],
+                        "v2": pier_force[6][i],
+                        "v3": pier_force[7][i],
+                        "t": pier_force[8][i],
+                        "m2": pier_force[9][i],
+                        "m3": pier_force[10][i],
                     }
                     pier_force_list.append(pier_force_dict)
         return pier_force_list
