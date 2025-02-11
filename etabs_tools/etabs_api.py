@@ -22,9 +22,7 @@ class etabs_api:
 
         self.sap_model = self.etabs_object.SapModel
 
-        self.pier_section_properties = self.get_pier_section_properties()
-        self.concrete_material_properties = self.get_concrete_material_properties()
-        self.load_cases = self.get_load_cases()
+        self.load_cases_and_combinations = self.get_load_cases_and_combinations()
         self.story_data = self.get_story_data()
         self.story_names = [story_data["Story Name"] for story_data in self.story_data]
 
@@ -44,9 +42,15 @@ class etabs_api:
         piers = []
         pier_forces = self.get_pier_forces(load_cases)
 
+        # Grab concrete material properties
+        self.concrete_material_properties = self.get_concrete_material_properties()
+        
         # Create a dictionary for quick lookup of story heights and material properties
         story_heights = {story["Story Name"]: round(story["Story Height"], 0) for story in self.story_data}
         material_fc = {material["Mat Name"]: material["fc"] for material in self.concrete_material_properties}
+
+        # Grab pier section properties
+        self.pier_section_properties = self.get_pier_section_properties()
 
         for section_property in self.pier_section_properties:
             section_property["Story Height"] = story_heights.get(section_property["Story Name"], 0)
@@ -162,7 +166,7 @@ class etabs_api:
                 )
         return section_properties
 
-    def get_load_case_list(self) -> list[str]:
+    def get_load_cases(self) -> list[str]:
         """ Get list of load case names  (excludes load combinations)
 
         :return load_cases_list: list of load cases
@@ -173,7 +177,7 @@ class etabs_api:
             load_cases_list.append(load_case)
         return load_cases_list
 
-    def get_load_cases(self) -> list[str]:
+    def get_load_cases_and_combinations(self) -> list[str]:
         """ Get list of load case names (including load combinations)
 
         :return load_cases: list of load cases

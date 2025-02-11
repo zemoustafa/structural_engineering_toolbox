@@ -10,51 +10,61 @@ import pandas as pd
 import tkinter as tk
 from tkinter import filedialog
 
-def dataframe_to_xlsx(dataframe: pd.DataFrame, title: str):
-    # Open file dialog to select folder
+def dataframe_to_xlsx(dataframe: pd.DataFrame, default_filename: str = "output.xlsx"):
+    """
+    Exports a Pandas DataFrame to an XLSX file, allowing the user to specify the filename.
+
+    Args:
+        dataframe (pd.DataFrame): The DataFrame to export.
+        default_filename (str): The default filename for the "Save As" dialog.
+    """
+    # Initialize the Tkinter root window (required for file dialogs)
     root = tk.Tk()
     root.withdraw()  # Hide the root window
-    folder_path = filedialog.askdirectory(title="Select Folder to Save Excel File")
 
-    if not folder_path:  # If user cancels, return without saving
-        print("No folder selected. Operation cancelled.")
+    # Open "Save As" dialog
+    file_path = filedialog.asksaveasfilename(
+        defaultextension=".xlsx",  # Ensure the extension is added
+        filetypes=[("Excel Files", "*.xlsx")],  # Filter for Excel files
+        title="Save As",
+        initialfile=default_filename  # Set a default filename
+    )
+
+    if not file_path:
+        print("No file selected. Operation cancelled.")
         return
 
-    # Define the full file path
-    file_path = os.path.join(folder_path, f"{title}.xlsx")
+    try:
+        # Use ExcelWriter to save the DataFrame to an Excel file
+        with pd.ExcelWriter(file_path, engine='xlsxwriter') as writer:
+            # Write the DataFrame to the Excel file
+            dataframe.to_excel(writer, sheet_name="Sheet1", index=False)
 
-    # Get number of rows of table
-    df_shape = dataframe.shape
-    num_rows = str(df_shape[0] + 1)
+            # Access the workbook and worksheet objects for formatting
+            workbook = writer.book
+            worksheet = writer.sheets["Sheet1"]
 
-    # Create writer object
-    writer = pd.ExcelWriter(file_path, engine='xlsxwriter')
-    workbook = writer.book
+            # Define a format for the header row
+            header_format = workbook.add_format({
+                'bold': True,
+                'text_wrap': False,
+                'valign': 'center',
+                'fg_color': '#0E70A6',
+                'border': 1
+            })
 
-    # Create worksheet from dataframe
-    dataframe.to_excel(writer, sheet_name=title, index=False)
-    worksheet1 = writer.sheets[title]
+            # Apply the header format to the first row
+            for col_num, value in enumerate(dataframe.columns):
+                worksheet.write(0, col_num, value, header_format)
 
-    # Create format for column titles
-    header_format = workbook.add_format({
-        'bold': True,
-        'text_wrap': False,
-        'valign': 'center',
-        'fg_color': '#0E70A6',
-        'border': 1
-    })
+            # Autofit the columns
+            worksheet.autofit()
 
-    # Add format to columns in worksheet
-    for col_num, value in enumerate(dataframe.columns.values):
-        worksheet1.write(0, col_num, value, header_format)  # Adjusted to match column index
+        print(f"Excel file saved at: {file_path}")
 
-    # Autofit column widths
-    worksheet1.autofit()
-
-    # Export xlsx file
-    writer.close()
-
-    print(f"Excel file saved at: {file_path}")
+    except Exception as e:
+        print(f"An error occurred during export: {e}")
+        return
 
 
 '''

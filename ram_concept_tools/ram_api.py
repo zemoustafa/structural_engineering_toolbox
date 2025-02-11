@@ -10,9 +10,6 @@ from ram_concept.result_layers import ReactionContext
 from ram_concept.point_2D import Point2D
 from ram_concept.line_segment_2D import LineSegment2D
 
-def copy_object():
-    pass
-
 def full_load_rundown(file_path_list):
     """
     Complete a full load rundown, requires file path of every level and
@@ -175,3 +172,68 @@ def ram_load_rundown(reaction_path, target_path):
     #     target_layer = target_layers[case_index]
     #     point_load = target_layer.add_point_load(Point2D(wall_element['Centroid X'], wall_element['Centroid Y']))
     #     point_load.Fz = wall_element['Fz']
+
+def adjust_high_points(model_path:str, tendon_direction:str, cover:float, layer:str):
+    # Direction must be 'Latitude' or 'Longitude'
+    if tendon_direction not in ['Latitude', 'Longitude']:
+        print('Error: Invalid direction')
+        return
+    
+    # Layer must be 'Primary' or 'Secondary'
+    if layer not in ['Primary', 'Secondary']:
+        print('Error: Invalid layer')
+        return
+    
+    # Calculate dimension from slab surface to high point
+    if layer == 'Primary':
+        below_slab_surface = cover + 7
+    elif layer == 'Secondary':
+        below_slab_surface = cover + 27
+
+    # Open model
+    concept = Concept.start_concept(headless=True)
+    model = concept.open_file(model_path)
+
+    # Access layers in the models
+    cad_manager = model.cad_manager
+
+    # Get all the tendon_layers
+    tendon_layers = cad_manager.tendon_layers
+
+    # Select layer based on desired direction
+    if tendon_direction == 'Latitude':
+        selected_tendon_layer = tendon_layers[2] # latitude manual tendons
+    elif tendon_direction == 'Longitude':
+        selected_tendon_layer = tendon_layers[3]  # longitude manual tendons
+    else:
+        print("Error: Invalid tendon direction.")
+
+    # Grab tendon nodes from selected layer
+    tendon_nodes = selected_tendon_layer.tendon_nodes
+
+    # Iterate through each tendon node
+    for tendon_node in tendon_nodes:
+        slab_soffit = tendon_node.soffit # Slab soffit elevation at this TendonNode
+        slab_surface = tendon_node.surface # Slab surface elevation at this TendonNode
+        slab_thickness = slab_surface - slab_soffit
+
+        node_elevation = tendon_node.elevation_value # The absolute elevation of this TendonNode
+
+        # Check that elevation of node is > 1/2 of slab thickness
+        if node_elevation > 0.5 * slab_thickness:
+            # If so, adjust node elevation
+            tendon_node.elevation_value = slab_surface - below_slab_surface
+
+        # Debug
+        print('Slab soffit: ' + str(slab_soffit))
+        print('Slab surface: ' + str(slab_surface))
+        print('Slab thickness: ' + str(slab_thickness))
+        print('Node elevation: ' + str(node_elevation))
+
+    # Close model
+    model.save_file(model_path)
+    concept.shut_down()
+
+
+model_path = r"C:\Users\zeyad.moustafa\OneDrive - Pritchard Francis\Documents\RAM API Tests\241119 23-064 Level 2 Flat Plate Option 1.6 DL 260 thk ZM.cpt"
+adjust_high_points(model_path, 'Latitude', 30, 'Primary')

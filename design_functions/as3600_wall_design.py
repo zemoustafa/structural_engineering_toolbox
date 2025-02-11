@@ -157,7 +157,7 @@ def get_phz_stories(start_phz:str, above_phz:int, story_names:list[str]) -> list
     
     :param start_phz: lowest level within plastic hinge region
     :param above_phz: number of levels within plastic hinge region above lowest story
-    :param story_names: list off all story names in building
+    :param story_names: list of all story names in building
 
     :type start_phz: str
     :type above_phz: int
@@ -264,7 +264,7 @@ def min_tension_reinforcement(fc:float, story:str, story_names:list, phz_levels:
         current_story_index = story_names.index(story)
         end_phz_index = story_names.index(phz_levels[-1])
         difference = current_story_index - end_phz_index
-        rho_wv_crit = "Not required"
+        rho_wv_crit = 0 # = not required
         for i in range(difference):
             rho_wv_typ = max(rho_wv_typ * 0.9, 0.0025)
     else:
