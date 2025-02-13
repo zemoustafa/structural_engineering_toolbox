@@ -178,10 +178,11 @@ def design_etabs_pier_as_column(
     # -------------------------------------------------------------------------------------------------
 
     # Determine in_plane shear capacity of pier
-    vuc = 0
+    vuc = 0 
     vus = 0
     phi_vu = 0
     h_bar_size = 12
+
     for bar_size in bar_sizes:
         # Check if bar size works for in-plane shear
         pier_section.h_bar_dia = bar_size
@@ -193,8 +194,34 @@ def design_etabs_pier_as_column(
         if phi_vu >= design_v_star:
             h_bar_size = bar_size
             break
-
+    
+    # Determine safety factor
     safety_factor_shear =  design_v_star / phi_vu
+
+    # Determine shear induced tension reinforcement due to compression force
+    # Initialise reinforcement
+    addl_tension_reo_c = 0
+    addl_tension_reo_t = 0
+
+    addl_tension_reo_c = vertical_structure.shear_induced_tension_reinforcement(
+        d=pier_section.d,
+        m_star=max(abs(design_m_star_top_xx), abs(design_m_star_bot_xx)),
+        n_star=p_max_compression,
+        v_star=design_v_star,
+        phi_vuc=0.65 * vuc
+    )
+
+    if p_max_tension != 0:
+        addl_tension_reo_t = vertical_structure.shear_induced_tension_reinforcement(
+            d=pier_section.d,
+            m_star=max(abs(design_m_star_top_xx), abs(design_m_star_bot_xx)),
+            n_star=p_max_tension,
+            v_star=design_v_star,
+            phi_vuc=0.65 * vuc
+        )
+
+    # Take max of each value
+    addl_tension_reo = max(addl_tension_reo_c, addl_tension_reo_t)
 
     # Add design data to designed pier dictionary
     designed_pier = {}
@@ -207,6 +234,7 @@ def design_etabs_pier_as_column(
     designed_pier['V* (kN)'] = round(design_v_star, 0)
     designed_pier['Phi Vu'] = round(phi_vu, 0)
     designed_pier['H Bar Size'] = h_bar_size
+    designed_pier['Ast addl (mm2)'] = round(addl_tension_reo, 0)
     designed_pier['Safety Factor Shear'] = round(safety_factor_shear, 2)
     designed_pier['P* Tension (kN)'] = round(p_max_tension, 0)
     designed_pier['P* Compression (kN)'] = round(p_max_compression, 0)

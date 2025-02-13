@@ -23,6 +23,8 @@ CONSTANTS
 
 """
 DEFAULT_FSY = 500  # MPa
+DEFUALT_DESIGN_CODE = AS3600()
+DEFUALT_STEEL_MATERIAL = DEFUALT_DESIGN_CODE.create_steel_material()
 
 """
 ENUMS
@@ -232,6 +234,19 @@ def min_tension_reinforcement(fc:float, story:str, story_names:list, phz_levels:
         pass
     return rho_wv_crit, rho_wv_typ
 
+def shear_induced_tension_reinforcement(d:float, m_star:float, n_star:float, v_star:float, phi_vuc:float):
+    
+    theta_v_rads = math.radians(36)
+    f_tds = 0.5 * ( v_star + phi_vuc)*1000 * (1 / math.tan(theta_v_rads) )
+    
+    z = d / 4
+
+    t_td = ( m_star * 1e6 / z ) + ( n_star*1000 / 2 ) + f_tds
+
+    a_st = t_td * 0.85 / DEFAULT_FSY
+
+    return a_st
+
 def column_shear(section:ColumnSection):
     '''
     Determines concrete contribution to shear capacity of column based on beam shear to Section 8
@@ -404,13 +419,13 @@ def moment_interaction_design(
             dia_top=section.v_bar_dia, area_top=bar_area, n_top=n_bars_x, c_top=section.cover + section.h_bar_dia,
             dia_bot=section.v_bar_dia, area_bot=bar_area, n_bot=n_bars_x, c_bot=section.cover + section.h_bar_dia,
             dia_side=section.v_bar_dia, area_side=bar_area, n_side=n_bars_y - 2, c_side=section.cover + section.h_bar_dia,
-            conc_mat=concrete, steel_mat=steel,
+            conc_mat=concrete, steel_mat=DEFUALT_STEEL_MATERIAL,
         )
         return ConcreteSection(geom)
 
     def get_moment_interaction_results(conc_sec):
-        design_code.assign_concrete_section(concrete_section=conc_sec)
-        return design_code.moment_interaction_diagram(progress_bar=False, n_points=18, control_points=[("fy", 1.0)])
+        DEFUALT_DESIGN_CODE.assign_concrete_section(concrete_section=conc_sec)
+        return DEFUALT_DESIGN_CODE.moment_interaction_diagram(progress_bar=False, n_points=18, control_points=[("fy", 1.0)])
 
     def process_results(f_mi_res):
         f_results_list = f_mi_res.get_results_lists(moment='m_x')
@@ -431,9 +446,7 @@ def moment_interaction_design(
     slenderness_x = 'Short' if section.h / rx <= 22 else 'Slender'
 
     # Set up moment interaction diagram using concreteproperties library
-    design_code = AS3600()
-    concrete = design_code.create_concrete_material(compressive_strength=section.fc)
-    steel = design_code.create_steel_material()
+    concrete = DEFUALT_DESIGN_CODE.create_concrete_material(compressive_strength=section.fc)
 
     # Create and process moment interaction results for both axes
     conc_sec_x = create_concrete_section(section.b, section.d, section.n_bars_x, section.n_bars_y)
