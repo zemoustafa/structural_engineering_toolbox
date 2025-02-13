@@ -120,6 +120,46 @@ FIGURES
 
 '''
 
+
+    # # Plot the interaction curves and applied loads for x-x axis
+    # fig_x, ax_x = plt.subplots()
+    # ax_x.plot(f_m_x, f_n_x, label='Interaction Curve - About XX')
+    # ax_x.plot(m_star_x, loading.n_star_compression, 'ro', label='Applied Load (Compression)')
+    # ax_x.plot([0, m_star_x], [0, loading.n_star_compression], 'b-', label='Load Line (Compression)')
+    # if loading.n_star_tension != 0:
+    #     ax_x.plot(m_star_x, loading.n_star_tension, 'go', label='Applied Load (Tension)')
+    #     ax_x.plot([0, m_star_x], [0, loading.n_star_tension], 'g-', label='Load Line (Tension)')
+    # if point_in_diagram_x_comp:
+    #     ax_x.plot([m_star_x, phi_m_x_comp], [loading.n_star_compression, phi_n_x_comp], 'b--', label='Extension Line (Compression)')
+    # if loading.n_star_tension != 0 and point_in_diagram_x_tens:
+    #     ax_x.plot([m_star_x, phi_m_x_tens], [loading.n_star_tension, phi_n_x_tens], 'g--', label='Extension Line (Tension)')
+    # ax_x.set_ylabel('Axial Load (kN)')
+    # ax_x.set_xlabel('Moment (kNm)')
+    # ax_x.set_title('Moment Interaction Diagram - About XX')
+    # ax_x.legend()
+    # ax_x.grid(True)
+
+    # # Plot the interaction curves and applied loads for y-y axis
+    # if check_both_axes:
+    #     fig_y, ax_y = plt.subplots()
+    #     ax_y.plot(f_m_y, f_n_y, label='Interaction Curve - About YY')
+    #     ax_y.plot(m_star_y, loading.n_star_compression, 'ro', label='Applied Load (Compression)')
+    #     ax_y.plot([0, m_star_y], [0, loading.n_star_compression], 'b-', label='Load Line (Compression)')
+    #     if loading.n_star_tension != 0:
+    #         ax_y.plot(m_star_y, loading.n_star_tension, 'go', label='Applied Load (Tension)')
+    #         ax_y.plot([0, m_star_y], [0, loading.n_star_tension], 'g-', label='Load Line (Tension)')
+    #     if point_in_diagram_y_comp:
+    #         ax_y.plot([m_star_y, phi_m_y_comp], [loading.n_star_compression, phi_n_y_comp], 'b--', label='Extension Line (Compression)')
+    #     if loading.n_star_tension != 0 and point_in_diagram_y_tens:
+    #         ax_y.plot([m_star_y, phi_m_y_tens], [loading.n_star_tension, phi_n_y_tens], 'g--', label='Extension Line (Tension)')
+    #     ax_y.set_ylabel('Axial Load (kN)')
+    #     ax_y.set_xlabel('Moment (kNm)')
+    #     ax_y.set_title('Moment Interaction Diagram - About YY')
+    #     ax_y.legend()
+    #     ax_y.grid(True)
+    # else:
+    #     fig_y = None
+
 # def plot_loading_plans(floor_objs:list[dict], wall_objs:list[dict]) -> dict:
     # """ Plot
 

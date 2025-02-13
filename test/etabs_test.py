@@ -1,8 +1,8 @@
 import comtypes.client
 import sys
 sys.path.append('C:\_Github\structural_engineering_toolbox')
-from etabs_tools import etabs_api
-from design_functions import pier_design_as_column, as3600_wall_design
+from etabs_tools import etabs_api, etabs_design 
+from as3600 import vertical_structure  
 import pandas as pd
 
 etabs_api = etabs_api.etabs_api()
@@ -13,7 +13,17 @@ eq_env_2 = '(88) RS ULS ENV SHEAR' # earthquake envelope factored EQ for amplifi
 wind_env = '(88) WIND ULS ENV' # wind envelope
 load_cases = [eq_env_1, eq_env_2, wind_env]
 
-pier_forces = etabs_api.get_pier_forces(load_cases=load_cases)
+piers = etabs_api.get_piers(load_cases=load_cases)
+designed_piers_df = etabs_design.design_all_piers(
+    piers=piers,
+    eq_env_1=eq_env_1,
+    eq_env_2=eq_env_2,
+    wind_env=wind_env,
+    vertical_spacing=200,
+    horizontal_spacing=200,
+    design_both_axes=False
+)
+
 pass
 # """
 # Creates instance of sap model object to access data in etabs model

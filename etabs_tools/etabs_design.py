@@ -5,8 +5,8 @@ Functions to design elements directly from an ETABS model
 
 # Import libraries and modules
 import sys
-sys.path.append(r'C:\_Github\structural_engineering_toolbox\design_functions')
-from design_functions import as3600_column_design, as3600_wall_design
+sys.path.append(r'C:\_Github\structural_engineering_toolbox')
+from as3600 import vertical_structure
 import pandas as pd
 import math
 
@@ -15,7 +15,7 @@ def filter_bar_sizes(fc: float, story: str, story_names: list, phz_levels: list,
     bar_sizes = [12, 16, 20, 24, 28, 32, 36, 40]
     
     # Calculate minimum tension reinforcement
-    rho_wv_crit, rho_wv_typ = as3600_wall_design.min_tension_reinforcement(fc, story, story_names, phz_levels)
+    rho_wv_crit, rho_wv_typ = vertical_structure.min_tension_reinforcement(fc, story, story_names, phz_levels)
     rho_max = max(rho_wv_crit, rho_wv_typ)
     
     # Filter bar sizes based on rho calculation
@@ -105,104 +105,88 @@ def design_etabs_pier_as_column(
 
     # Design axial load
     p_max = max(pier[eq_env_1 + ' Top Max']['p'], pier[eq_env_1 + ' Bottom Max']['p']) / 1000
-    p_max_tension = 0 if p_max < 0 else p_max
-    p_max_compression = abs (min(pier[eq_env_1 + ' Top Min']['p'], pier[eq_env_1 + ' Bottom Min']['p']) / 1000 )
+    if p_max is not None and p_max < 0:
+        p_max_tension = 0
+    else:
+        p_max_tension = -1 * abs(p_max)
+
+    p_max_compression = abs(min(pier[eq_env_1 + ' Top Min']['p'], pier[eq_env_1 + ' Bottom Min']['p']) / 1000 )
 
     # Design pier as a column under compression load
     v_bar_size_1 = 0
 
-    # Initialise results of capacity
-    phi_mu_comp_x_x = 0
-    phi_nu_comp_x_x = 0
-    phi_mu_tens_x_x = 0
-    phi_nu_tens_x_x = 0
-    
-    phi_mu_comp_y_y = 0
-    phi_nu_comp_y_y = 0
-    phi_mu_tens_y_y = 0
-    phi_nu_tens_y_y = 0
+    # Initialise safety factors
+    safety_factor_x_c = 0
+    safety_factor_x_t = 0
+    safety_factor_y_c = 0
+    safety_factor_y_t = 0
+
+    pier_section = vertical_structure.ColumnSection(
+            section_type=vertical_structure.SectionType.WALL, fc=fc, d=d, b=b, h=h, cover=30, v_bar_dia=12, v_bar_cts=vertical_spacing, h_bar_dia=12, h_bar_cts=horizontal_spacing)
+    loading = vertical_structure.Loading(
+        n_star_compression=p_max_compression, 
+        n_star_tension=p_max_tension,
+        m_x_top=design_m_star_top_xx, 
+        m_x_bot=design_m_star_bot_xx, 
+        m_y_top=design_m_star_top_yy if design_both_axes == True else 0, 
+        m_y_bot=design_m_star_bot_yy if design_both_axes == True else 0, 
+        v_star=design_v_star
+        )
 
     # Check each bar size and if it works, end the for loop
     for bar_size in bar_sizes:
         # Moment interaction check with compression load
-        moment_interaction_results_p_min = as3600_column_design.moment_interaction_design(
-            fc=fc,
-            cover=30,
-            d=d,
-            b=b,
-            h=h,
-            v_bar_dia=bar_size,
-            v_bar_cts=vertical_spacing,
-            h_bar_dia=12,
+        pier_section.v_bar_dia = bar_size
+        moment_interaction_results = vertical_structure.moment_interaction_design(
+            section=pier_section,
             bracing='Unbraced',
-            n_star=p_max_compression,
-            m_star_xx_top=design_m_star_top_xx,
-            m_star_xx_bot=design_m_star_bot_xx,
-            m_star_yy_top=design_m_star_top_yy,
-            m_star_yy_bot=design_m_star_bot_yy,
+            loading=loading,
             check_both_axes=design_both_axes
         )
 
-        if design_both_axes == True:
-            if moment_interaction_results_p_min[0][0] == 'Pass' and moment_interaction_results_p_min[0][1] == 'Pass':
+        if design_both_axes == False and loading.n_star_tension == 0:
+            if moment_interaction_results.result_x_c == 'Pass':
                 v_bar_size_1 = bar_size
-                phi_mu_comp_x_x = moment_interaction_results_p_min[1][0]
-                phi_nu_comp_x_x = moment_interaction_results_p_min[1][1]
-                
-                phi_mu_comp_y_y = moment_interaction_results_p_min[2][0]
-                phi_nu_comp_y_y = moment_interaction_results_p_min[2][1]
+                safety_factor_x_c = max(design_m_star_top_xx, design_m_star_bot_xx) / moment_interaction_results.m_x_c
                 break
-            break
-        else:
-            if moment_interaction_results_p_min[0] == 'Pass':
+            
+        elif design_both_axes == False and loading.n_star_tension != 0:
+            if moment_interaction_results.result_x_c == 'Pass' and moment_interaction_results.result_x_t == 'Pass':
                 v_bar_size_1 = bar_size
-                phi_mu_comp_x_x = moment_interaction_results_p_min[1][0]
-                phi_nu_comp_x_x = moment_interaction_results_p_min[1][1]
+                safety_factor_x_c = max(design_m_star_top_xx, design_m_star_bot_xx) / moment_interaction_results.phi_m_x_c
+                safety_factor_x_t = max(design_m_star_top_xx, design_m_star_bot_xx) / moment_interaction_results.phi_m_x_t
                 break
+
+        elif design_both_axes == True and loading.n_star_tension == 0:
+            if moment_interaction_results.result_x_c == 'Pass' and moment_interaction_results.result_y_c == 'Pass':
+                v_bar_size_1 = bar_size
+                safety_factor_x_c = max(design_m_star_top_xx, design_m_star_bot_xx) / moment_interaction_results.phi_m_x_c
+                safety_factor_y_c = max(design_m_star_top_yy, design_m_star_bot_yy) / moment_interaction_results.phi_m_y_c
+                break
+
+        elif design_both_axes == True and loading.n_star_tension != 0:
+            if moment_interaction_results.result_x_c == 'Pass' and moment_interaction_results.result_x_t == 'Pass' and moment_interaction_results.result_y_c == 'Pass' and moment_interaction_results.result_y_t == 'Pass':
+                v_bar_size_1 = bar_size
+                safety_factor_x_c = max(design_m_star_top_xx, design_m_star_bot_xx) / moment_interaction_results.phi_m_x_c
+                safety_factor_x_t = max(design_m_star_top_xx, design_m_star_bot_xx) / moment_interaction_results.phi_m_x_t
+                safety_factor_y_c = max(design_m_star_top_yy, design_m_star_bot_yy) / moment_interaction_results.phi_m_y_c
+                safety_factor_y_t = max(design_m_star_top_yy, design_m_star_bot_yy) / moment_interaction_results.phi_m_y_t
+                break
+
             break
-
-
-    # Determine pertentage capacity
-    safety_factor_x_x = max(design_m_star_top_xx, design_m_star_bot_xx) / phi_mu_comp_x_x
-
-    # WEAK AXIS
-    # -------------------------------------------------------------------------------------------------
-    # Repeat calculations if check both axes is true
-    if design_both_axes == True:
-        design_moment_y_y = max(
-            abs(pier[eq_env_1 + ' Top Max']['m2']),
-            abs(pier[eq_env_1 + ' Bottom Max']['m2']),
-            abs(pier[eq_env_1 + ' Top Min']['m2']),
-            abs(pier[eq_env_1 + ' Bottom Min']['m2']),
-            abs(pier[wind_env + ' Top Max']['m2']),
-            abs(pier[wind_env + ' Bottom Max']['m2']),
-            abs(pier[wind_env + ' Top Min']['m2']),
-            abs(pier[wind_env + ' Bottom Min']['m2'])
-        )
-
-        design_m_star_top_yy, design_m_star_bot_yy = get_design_moments(design_moment_y_y, eq_env_1, ' Top Max', ' Bottom Max', ' Top Min', ' Bottom Min', 'm2')
-        design_m_star_top_yy = design_m_star_top_yy / 1e6
-        design_m_star_bot_yy = design_m_star_bot_yy / 1e6
-        safety_factor_y_y = max(design_m_star_top_yy, design_m_star_bot_yy) / phi_mu_comp_y_y        
-
+        
     # -------------------------------------------------------------------------------------------------
 
     # Determine in_plane shear capacity of pier
     vuc = 0
     vus = 0
     phi_vu = 0
+    h_bar_size = 12
     for bar_size in bar_sizes:
         # Check if bar size works for in-plane shear
-        vuc, vus = as3600_column_design.column_shear(
-            fc=fc,
-            cover=30,
-            d=d,
-            b=b,
-            h=h,
-            v_bar_dia=v_bar_size_1,
-            v_bar_cts=vertical_spacing,
-            h_bar_dia=bar_size,
-            h_bar_cts=horizontal_spacing,
+        pier_section.h_bar_dia = bar_size
+        vuc, vus = vertical_structure.column_shear(
+            section=pier_section,
         )
 
         phi_vu = 0.65 * (vuc + vus)
@@ -229,16 +213,16 @@ def design_etabs_pier_as_column(
     designed_pier['V Bar Size'] = v_bar_size_1
     designed_pier['M* Top X-X (kNm)'] = round(design_m_star_top_xx, 0)
     designed_pier['M* Bot X-X (kNm)'] = round(design_m_star_bot_xx, 0)
-    designed_pier['Phi Mu X-X'] = round(phi_mu_comp_x_x, 0)
-    designed_pier['Phi Nu X-X'] = round(phi_nu_comp_x_x, 0)
-    designed_pier['Safety Factor X-X'] = round(safety_factor_x_x, 2)
+    designed_pier['Phi Mu X-X'] = round(moment_interaction_results.phi_m_x_c if safety_factor_x_c > safety_factor_x_t else moment_interaction_results.phi_m_x_t, 0)
+    designed_pier['Phi Nu X-X'] = round(moment_interaction_results.phi_n_x_c if safety_factor_x_c > safety_factor_x_t else moment_interaction_results.phi_n_x_t, 0)
+    designed_pier['Safety Factor X-X'] = round(max(safety_factor_x_c, safety_factor_x_t), 2)
 
     if design_both_axes == True:
         designed_pier['M* Top Y-Y (kNm)'] = round(design_m_star_top_yy, 0)
         designed_pier['M* Bot Y-Y (kNm)'] = round(design_m_star_bot_yy, 0)
-        designed_pier['Phi Mu Y-Y'] = round(phi_mu_comp_y_y, 0)
-        designed_pier['Phi Nu Y-Y'] = round(phi_nu_comp_y_y, 0)
-        designed_pier['Safety Factor Y-Y'] = round(safety_factor_y_y, 2)
+        designed_pier['Phi Mu Y-Y'] = round(moment_interaction_results.phi_m_y_c if safety_factor_y_c > safety_factor_y_t else moment_interaction_results.phi_m_y_t, 0)
+        designed_pier['Phi Nu Y-Y'] = round(moment_interaction_results.phi_n_y_c if safety_factor_y_c > safety_factor_y_t else moment_interaction_results.phi_n_y_t, 0)
+        designed_pier['Safety Factor Y-Y'] = round(max(safety_factor_y_c, safety_factor_y_t), 2)
 
     return designed_pier
 
