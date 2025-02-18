@@ -53,7 +53,7 @@ def design_etabs_pier_as_column(
 
     '''
     
-    # Extract pier dimensionsand story
+    # Extract pier dimensions and story
     d = pier['Width Bot'] # Length of pier
     b = pier['Thickness Bot'] # Thickness of pier
     h = pier['Story Height'] # Height of pier
@@ -121,8 +121,20 @@ def design_etabs_pier_as_column(
     safety_factor_y_c = 0
     safety_factor_y_t = 0
 
-    pier_section = vertical_structure.ColumnSection(
-            section_type=vertical_structure.SectionType.WALL, fc=fc, d=d, b=b, h=h, cover=30, v_bar_dia=12, v_bar_cts=vertical_spacing, h_bar_dia=12, h_bar_cts=horizontal_spacing)
+    pier_section = vertical_structure.RectangularColumn(
+            section_type=vertical_structure.SectionType.WALL, 
+            fc=fc, 
+            d=d, 
+            b=b, 
+            h=h, 
+            cover=30, 
+            v_bar_dia=12, 
+            v_bar_cts=vertical_spacing, 
+            h_bar_dia=12,
+            h_bar_cts=horizontal_spacing,
+            bracing_x=vertical_structure.BracingType.UNBRACED,
+            bracing_y=vertical_structure.BracingType.BRACED
+            )
     loading = vertical_structure.Loading(
         n_star_compression=p_max_compression, 
         n_star_tension=p_max_tension,
