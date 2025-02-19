@@ -10,6 +10,40 @@ from as3600 import vertical_structure
 import pandas as pd
 import math
 
+class PierDesignHelper:
+    """Helper class for extracting and processing design values from a pier data structure."""
+
+    @staticmethod
+    def get_max_absolute_values(pier:dict, env: str, keys:tuple[str, str, str, str], moment_key: str) -> float:
+        """Get the maximum absolute moment values for the given environment and moment key."""
+        return max(abs(pier[env + k][moment_key]) for k in keys)
+
+    @staticmethod
+    def get_corresponding_moments(pier:dict, env: str, keys:tuple[str, str, str, str], moment_key: str, design_moment: float) -> tuple[float, float]:
+        """Find the corresponding moments at both ends for the maximum design moment."""
+        values = {abs(pier[env + k][moment_key]): k for k in keys}
+        max_key = values[design_moment]
+
+        if "Top" in max_key:
+            return design_moment, abs(pier[env + keys[1]][moment_key])
+        else:
+            return design_moment, abs(pier[env + keys[0]][moment_key])
+
+    @staticmethod
+    def determine_design_loads(pier:dict, eq_env_1: str, eq_env_2: str, wind_env: str) -> tuple[float, float, float]:
+        """Determine design axial loads and shear forces."""
+        keys = (" Top Max", " Bottom Max", " Top Min", " Bottom Min")
+
+        v_star = max(abs(pier[eq_env_2 + k]['v2']) for k in keys) / 1000
+
+        p_max = max(pier[eq_env_1 + ' Top Max']['p'], pier[eq_env_1 + ' Bottom Max']['p']) / 1000
+        p_max_tension = 0 if p_max is None or p_max >= 0 else -abs(p_max)
+
+        p_max_compression = abs(min(pier[eq_env_1 + ' Top Min']['p'], pier[eq_env_1 + ' Bottom Min']['p']) / 1000)
+
+        return v_star, p_max_tension, p_max_compression
+    
+
 def filter_bar_sizes(fc: float, story: str, story_names: list, phz_levels: list, vertical_spacing: float, b: float):
     # Define bar sizes
     bar_sizes = [12, 16, 20, 24, 28, 32, 36, 40]
@@ -26,6 +60,7 @@ def filter_bar_sizes(fc: float, story: str, story_names: list, phz_levels: list,
             filtered_bar_sizes.append(bar_size)
     
     return filtered_bar_sizes
+
 
 def design_etabs_pier_as_column(
         pier:dict, 
@@ -265,6 +300,7 @@ def design_etabs_pier_as_column(
         designed_pier['Safety Factor Y-Y'] = round(max(safety_factor_y_c, safety_factor_y_t), 2)
 
     return designed_pier
+
 
 def design_all_piers(
         piers:list[dict], 

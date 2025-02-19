@@ -9,7 +9,7 @@ Axes and sign convention:
 - m_y: Moment about y-axis
 - Positive axial loads are compression
 - Negative axial loads are tension
-- Shear directions are taken as absolute values
+- Shear is taken as absolute value. Direction/sign is not considered
 
 '''
 
@@ -52,6 +52,29 @@ DATACLASSES - DEFINE SECTION PROPERTIES AND LOADING
 """
 @dataclass
 class RectangularColumn:
+    '''
+    Creates rectangular column object with section properties and reinforcement
+    
+    When creating a 'wall', input bar spacing rather than number of bars.
+    When creating a 'column', input number of bars rather than bar spacing.
+
+    Parameters:
+    section_type (SectionType): 'Column' or 'Wall'
+    fc (float): Concrete strength (MPa)
+    d (float): Depth (length for walls, depth for columns) (mm)
+    b (float): Thickness (for walls) or width (for columns) (mm)
+    h (float): Height (mm)
+    bracing_x (BracingType): 'Braced' or 'Unbraced'
+    bracing_y (BracingType): 'Braced' or 'Unbraced'
+    cover (float): Cover to reinforcement (mm)
+    v_bar_dia (float): Vertical bar diameter (mm)
+    h_bar_dia (float): Horizontal bar diameter (mm), only used for walls
+    v_bar_cts (float): Vertical bar spacing (only for walls)
+    h_bar_cts (float): Horizontal bar spacing (only for walls)
+    n_bars_x (int): Number of vertical bars (only for columns)
+    n_bars_y (int): Number of horizontal bars (only for columns)
+
+    '''
     section_type: SectionType  # 'Column' or 'Wall'
     fc: float  # Concrete strength (MPa)
     d: float  # Depth (long direction for walls, width for columns) (mm)
@@ -77,6 +100,19 @@ class RectangularColumn:
         
 @dataclass
 class Loading:
+    '''
+    Defines loading applied to column or wall.
+
+    Parameters:
+    n_star_compression (float): Axial force in compression (+ve) (kN)
+    n_star_tension (float): Axial force in tension. Value must be 0 or negative (kN)
+    m_x_top (float): Major-axis moment at the top (kNm)
+    m_x_bot (float): Major-axis moment at the bottom (kNm)
+    m_y_top (float): Minor-axis moment at the top (kNm)
+    m_y_bot (float): Minor-axis moment at the bottom (kNm)
+    v_star (float): Shear force (kN)
+
+    '''
     n_star_compression: float  # Axial force in compression (+ve)
     n_star_tension: float      # Axial force in tension (+ve)
     m_x_top: float              # Major-axis moment at the top
@@ -89,16 +125,11 @@ class Loading:
 NAMED TUPLES - STORE RESULTS
 
 """
-ColumnDesignResults = namedtuple(
-    "ColumnDesignResults",
-    ['result_x_c', 'phi_n_x_c', 'phi_m_x_c', 'result_x_t', 'phi_n_x_t', 'phi_m_x_t', 'result_y_c', 'phi_n_y_c', 'phi_m_y_c', 'result_y_t', 'phi_n_y_t', 'phi_m_y_t'],
-    defaults=(None, None, None, None, None, None, None, None, None, None, None, None)
-)
 
-# Store results from the moment interaction analysis
+# Results containing moment interaction diagram values and unfactored balance point
 ColumnMIResults = namedtuple('ColumnMIResults', ['f_m_x', 'f_n_x', 'f_m_y', 'f_n_y', 'balance_point_x', 'balance_point_y'], defaults=(None, None, None, None, None, None))
 
-# Store results from column capacity check
+# Results from column capacity check
 ColumnCapacityResults = namedtuple('ColumnCapacity', ['phi_m_x_comp', 'phi_n_x_comp', 'phi_m_x_tens', 'phi_n_x_tens', 'phi_m_y_comp', 'phi_n_y_comp', 'phi_m_y_tens', 'phi_n_y_tens'], defaults=[None, None, None, None, None, None, None, None])
 
 """
@@ -148,6 +179,7 @@ def __find_intersection(f_m, f_n, m_star, n_star):
     phi_n, phi_m = intersection.y, intersection.x
 
     return phi_n, phi_m
+
 
 def __is_point_inside_curve(f_m_x, f_n_x, m_star, n_star):
     """
@@ -360,15 +392,12 @@ def moment_magnification_factor(fc:float, bracing:str, d:float, b:float, n_c:flo
     return magnification_factor
 
 
-def column_buckling_load(d, h, cover, v_bar_dia, h_bar_dia, m_ub, beta_d=0.5):
+def column_buckling_load(section:RectangularColumn, m_ub, beta_d=0.5):
     '''
     Determine buckling load of column based on Section 10
 
     Parameters:
-    d (float): total depth of section
-    v_bar_dia (float): diameter of vertical bars
-    h_bar_dia (float): diameter of horizontal bars
-    cover (float): cover to reinforcement
+    section (RectangularColumn): RectangularColumn object
     m_ub (float): moment at balance point (kN)
     beta_d (float): ratio of G/(G+Q) for column (default value is 0.5)
 
@@ -378,10 +407,11 @@ def column_buckling_load(d, h, cover, v_bar_dia, h_bar_dia, m_ub, beta_d=0.5):
     '''
 
     # Calculate effective depth of section
-    d_0 = d - cover - h_bar_dia - v_bar_dia/2
+    d_0 = section.d - section.cover - section.h_bar_dia - section.v_bar_dia/2
 
     # Calculate buckling load - Cl 10.4.4
-    n_c = round( (math.pi**2 / h**2) * ((182 * d_0) * 0.65 * m_ub / (1 + beta_d)) / 1000, 1 ) # kN
+    n_c = (math.pi / section.h)**2 * (182 * d_0) * 0.65 * (m_ub * 1e6) / (1 + beta_d) # kN
+
     return n_c
 
 
@@ -470,6 +500,12 @@ def check_column_capacity(section:RectangularColumn, loading:Loading, mi_results
     capacity (ColumnCapacityResults): Named tuple containing column capacities
     
     '''
+    # Check column buckling load is not exceeded
+    n_c = column_buckling_load(section=section, m_ub=mi_results.balance_point_x[0], beta_d=0.5)
+    print('n_c = ' + str(n_c))
+    if loading.n_star_compression > n_c:
+
+        raise ValueError(f"Compression load exceeds column buckling load of {n_c} kN")
 
     # Determine if column is short or slender - Cl 10.2
     rx = 0.3 * section.d # Radius of gyration - Cl 10.5.2
@@ -545,11 +581,11 @@ def check_column_capacity(section:RectangularColumn, loading:Loading, mi_results
 #     bracing_y=BracingType.BRACED,
 #     )
 
-# # input parameters
+# input parameters
 wall = RectangularColumn(
     section_type=SectionType.WALL,
     fc=50,
-    d=5000,
+    d=2500,
     b=300,
     h=4200,
     cover=50,
@@ -562,7 +598,7 @@ wall = RectangularColumn(
     )
 
 loading = Loading(
-    n_star_compression=8000,
+    n_star_compression=20000,
     n_star_tension=-2000,
     m_x_top=4000,
     m_x_bot=0,
@@ -580,40 +616,40 @@ results = rectangular_column_moment_interaction(section=wall, design_both_axes=c
 column_capacity = check_column_capacity(wall, loading, results)
 
 # # Column shear capacity
-# v_uc, v_us = column_shear(wall)
+# v_uc, v_us = column_shear_capacity(wall)
 # shear_reo = shear_induced_tension_reinforcement(wall.d, column_capacity.phi_m_x_comp, column_capacity.phi_n_x_comp, loading.v_star, 0.7*v_uc + 0.7*v_us)
 
-print('Column Design Results')
-print('---------------------')
-print('Column Dimensions: ' + str(wall.b) + ' x ' + str(wall.d) + ' mm')
-print('Concrete Strength: ' + str(wall.fc) + ' MPa')
-print('Vertical Bar Diameter: ' + str(wall.v_bar_dia) + ' mm')
-print('Vertical Bar Spacing: ' + str(wall.v_bar_cts) + ' mm')
-print('Horizontal Bar Diameter: ' + str(wall.h_bar_dia) + ' mm')
-print('Horizontal Bar Spacing: ' + str(wall.h_bar_cts) + ' mm')
-print('Numnber of bars x: ' + str(wall.n_bars_x))
-print('Numnber of bars y: ' + str(wall.n_bars_y))
-print('Cover to Reinforcement: ' + str(wall.cover) + ' mm')
-print('Axial Load (compression): ' + str(loading.n_star_compression) + ' kN')
-print('Axial Load (tension): ' + str(loading.n_star_tension) + ' kN')
-print('---------------------')
-print('Results X')
-print('Phi N X C: ' + str(round(column_capacity.phi_n_x_comp, 0))) # intersection with N
-print('Phi M X C: ' + str(round(column_capacity.phi_m_x_comp, 0))) # intersection with M
+# print('Column Design Results')
+# print('---------------------')
+# print('Column Dimensions: ' + str(wall.b) + ' x ' + str(wall.d) + ' mm')
+# print('Concrete Strength: ' + str(wall.fc) + ' MPa')
+# print('Vertical Bar Diameter: ' + str(wall.v_bar_dia) + ' mm')
+# print('Vertical Bar Spacing: ' + str(wall.v_bar_cts) + ' mm')
+# print('Horizontal Bar Diameter: ' + str(wall.h_bar_dia) + ' mm')
+# print('Horizontal Bar Spacing: ' + str(wall.h_bar_cts) + ' mm')
+# print('Numnber of bars x: ' + str(wall.n_bars_x))
+# print('Numnber of bars y: ' + str(wall.n_bars_y))
+# print('Cover to Reinforcement: ' + str(wall.cover) + ' mm')
+# print('Axial Load (compression): ' + str(loading.n_star_compression) + ' kN')
+# print('Axial Load (tension): ' + str(loading.n_star_tension) + ' kN')
+# print('---------------------')
+# print('Results X')
+# print('Phi N X C: ' + str(round(column_capacity.phi_n_x_comp, 0))) # intersection with N
+# print('Phi M X C: ' + str(round(column_capacity.phi_m_x_comp, 0))) # intersection with M
 
-if column_capacity.phi_m_x_tens is not None:
-    print('Phi N X T: ' + str(round(column_capacity.phi_n_x_tens))) # intersection with N
-    print('Phi M X T: ' + str(round(column_capacity.phi_m_x_tens))) # intersection with M
+# if column_capacity.phi_m_x_tens is not None:
+#     print('Phi N X T: ' + str(round(column_capacity.phi_n_x_tens))) # intersection with N
+#     print('Phi M X T: ' + str(round(column_capacity.phi_m_x_tens))) # intersection with M
 
-if column_capacity.phi_m_y_comp is not None:
-    print('---------------------')
-    print('Results Y')
-    print('Phi N Y C: ' + str(round(column_capacity.phi_n_y_comp))) # intersection with N
-    print('Phi M Y C: ' + str(round(column_capacity.phi_m_y_comp))) # intersection with M
+# if column_capacity.phi_m_y_comp is not None:
+#     print('---------------------')
+#     print('Results Y')
+#     print('Phi N Y C: ' + str(round(column_capacity.phi_n_y_comp))) # intersection with N
+#     print('Phi M Y C: ' + str(round(column_capacity.phi_m_y_comp))) # intersection with M
 
-if column_capacity.phi_m_y_tens is not None:
-    print('Phi N Y T: ' + str(round(column_capacity.phi_n_y_tens))) # intersection with N
-    print('Phi M Y T: ' + str(round(column_capacity.phi_m_y_tens))) # intersection with M
+# if column_capacity.phi_m_y_tens is not None:
+#     print('Phi N Y T: ' + str(round(column_capacity.phi_n_y_tens))) # intersection with N
+#     print('Phi M Y T: ' + str(round(column_capacity.phi_m_y_tens))) # intersection with M
 
 # shear_pass_fail = 'Pass' if 0.7*v_uc + 0.7*v_us > loading.v_star else 'Fail'
 # print('Shear Capacity Results: ' + shear_pass_fail)
