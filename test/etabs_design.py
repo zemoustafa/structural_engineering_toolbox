@@ -6,7 +6,7 @@ Functions to design elements directly from an ETABS model
 # Import libraries and modules
 import sys
 sys.path.append(r'C:\_Github\structural_engineering_toolbox')
-from as3600 import vertical_structure
+from test import vertical_structure
 import pandas as pd
 import math
 

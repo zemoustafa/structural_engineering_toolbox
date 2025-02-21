@@ -41,28 +41,43 @@ class PierColumnDesigner:
         ) / 1000
     
     def get_design_moment(self, env, moment_key):
-        return max(
+        '''
+        Sorts out the design moment for the pier
+
+        Parameters:
+        env (str): name of earthquake combination envelope. Eg. '(88) RS ULS ENV'. Must be envelope used for flexure design
+        moment_key (str): key to access the moment value in the pier dictionary. Eg. 'm3' for strong axis, 'm2' for weak axis
+
+        Returns:
+        design_m_star_top (float): design moment for top of pier
+        design_m_star_bot (float): design moment for bottom of pier
+
+        '''
+        # Take max of earthquake and wind envelopes
+        design_m_star_top = max(
             abs(self.pier[env + ' Top Max'][moment_key]),
-            abs(self.pier[env + ' Bottom Max'][moment_key]),
             abs(self.pier[env + ' Top Min'][moment_key]),
-            abs(self.pier[env + ' Bottom Min'][moment_key]),
             abs(self.pier[self.wind_env + ' Top Max'][moment_key]),
+            abs(self.pier[self.wind_env + ' Top Min'][moment_key])
+        ) / 1e6
+        design_m_star_bot = max(
+            abs(self.pier[env + ' Bottom Max'][moment_key]),
+            abs(self.pier[env + ' Bottom Min'][moment_key]),
             abs(self.pier[self.wind_env + ' Bottom Max'][moment_key]),
-            abs(self.pier[self.wind_env + ' Top Min'][moment_key]),
             abs(self.pier[self.wind_env + ' Bottom Min'][moment_key])
         ) / 1e6
+        return design_m_star_top, design_m_star_bot
     
     def get_design_axial_loads(self):
         p_max = max(self.pier[self.eq_env_1 + ' Top Max']['p'], self.pier[self.eq_env_1 + ' Bottom Max']['p']) / 1000
-        p_max_tension = 0 if p_max is None or p_max >= 0 else -1 * abs(p_max)
+        p_max_tension = 0 if p_max < 0 else -1 * p_max
         p_max_compression = abs(min(self.pier[self.eq_env_1 + ' Top Min']['p'], self.pier[self.eq_env_1 + ' Bottom Min']['p']) / 1000)
         return p_max_tension, p_max_compression
     
     def design_pier(self):
         design_v_star = self.get_design_shear_force()
-        design_m_star_top_xx = self.get_design_moment(self.eq_env_1, 'm3')
-        design_m_star_bot_xx = self.get_design_moment(self.eq_env_1, 'm3')
-        design_m_star_top_yy, design_m_star_bot_yy = 0, 0
+        design_m_star_top_x, design_m_star_bot_x = self.get_design_moment(self.eq_env_1, 'm3')
+        design_m_star_top_y, design_m_star_bot_y = self.get_design_moment(self.eq_env_1, 'm2') if self.design_both_axes else 0, 0
         p_max_tension, p_max_compression = self.get_design_axial_loads()
 
         pier_section = vertical_structure_v1.RectangularColumn(
@@ -83,10 +98,10 @@ class PierColumnDesigner:
         loading = vertical_structure_v1.Loading(
             n_star_compression=p_max_compression, 
             n_star_tension=p_max_tension,
-            m_x_top=design_m_star_top_xx, 
-            m_x_bot=design_m_star_bot_xx, 
-            m_y_top=design_m_star_top_yy if self.design_both_axes else 0, 
-            m_y_bot=design_m_star_bot_yy if self.design_both_axes else 0, 
+            m_x_top=design_m_star_top_x, 
+            m_x_bot=design_m_star_bot_x, 
+            m_y_top=design_m_star_top_y if self.design_both_axes else 0, 
+            m_y_bot=design_m_star_bot_y if self.design_both_axes else 0, 
             v_star=design_v_star
         )
 
@@ -107,19 +122,19 @@ class PierColumnDesigner:
 
             # Check if passes or fails
             # First, check if design_both_axes is True
-            if self.design_both_axes:
+            if self.design_both_axes: # If design_both_axes is True
                 if column_check_results.result_x == 'Pass' and column_check_results.result_y_c == 'Pass' and column_check_results.buckling_x == False and column_check_results.buckling_y == False:
-                    v_bar_size = bar_size
-                    safety_factor_flexure_x_1 = column_check_results.phi_m_x_comp / max(design_m_star_top_xx, design_m_star_bot_xx)
-                    safety_factor_flexure_x_2 = column_check_results.phi_m_x_tens / max(design_m_star_top_xx, design_m_star_bot_xx)
-                    safety_factor_flexure_y_1 = column_check_results.phi_m_y_comp / max(design_m_star_top_yy, design_m_star_bot_yy)
-                    safety_factor_flexure_y_2 = column_check_results.phi_m_y_tens / max(design_m_star_top_yy, design_m_star_bot_yy)
+                    # Check utilisation of column capacity for both axes
+                    utilisation_x_1 = max(design_m_star_top_x, design_m_star_bot_x) / column_check_results.phi_m_x_comp # Check utilisation under compression load
+                    utilisation_x_2 = max(design_m_star_top_x, design_m_star_bot_x) / column_check_results.phi_m_x_tens if column_check_results.phi_m_x_tens is not None else 0 # Check utilisation under tension load (if applicable)
+                    utilisation_y_1 = max(design_m_star_top_y, design_m_star_bot_y) / column_check_results.phi_m_y_comp # Check utilisation under compression load
+                    utilisation_y_2 = max(design_m_star_top_y, design_m_star_bot_y) / column_check_results.phi_m_y_tens if column_check_results.phi_m_x_tens is not None else 0 # Check utilisation under tension load (if applicable)
                     break
-            else:
+            else: # If design_both_axes is False
                 if column_check_results.result_x == 'Pass' and column_check_results.buckling_x == False:
-                    v_bar_size = bar_size
-                    safety_factor_flexure_x_1 = column_check_results.phi_m_x_comp / max(design_m_star_top_xx, design_m_star_bot_xx)
-                    safety_factor_flexure_x_2 = column_check_results.phi_m_x_tens / max(design_m_star_top_xx, design_m_star_bot_xx) if column_check_results.phi_m_x_tens is not None else 0
+                    # Check utilisation of column capacity for strong axis only
+                    utilisation_x_1 = max(design_m_star_top_x, design_m_star_bot_x) / column_check_results.phi_m_x_comp # Check utilisation under compression load
+                    utilisation_x_2 = max(design_m_star_top_x, design_m_star_bot_x) / column_check_results.phi_m_x_tens if column_check_results.phi_m_x_tens is not None else 0 # Check utilisation under tension load (if applicable)
                     break
 
         # Design for shear
@@ -132,11 +147,11 @@ class PierColumnDesigner:
             v_uc, v_us = vertical_structure_v1.column_shear_capacity(pier_section)
             
             # Calculate phiVu
-            phi_vu = 0.65 * v_uc
+            phi_vu = 0.65 * v_us
 
             # Check if passes or fails
-            safety_factor_shear = phi_vu / loading.v_star
-            if safety_factor_shear >= 1:
+            safety_factor_shear = loading.v_star / phi_vu
+            if safety_factor_shear <= 1:
                 break
 
         # Store designed pier results into a dictionary
@@ -150,23 +165,21 @@ class PierColumnDesigner:
             'V* (kN)': round(design_v_star, 0),
             'phiVu (kN)': round(phi_vu, 0),
             'H bar size': pier_section.h_bar_dia,
-            'Result Shear': safety_factor_shear,
+            'Utilisation Shear': round(safety_factor_shear, 2),
             'P* Max Compression (kN)': round(p_max_compression, 0),
             'P* Max Tension (kN)': round(p_max_tension, 0),
-            'M* Top X (kNm)': round(design_m_star_top_xx, 0),
-            'M* Bot X (kNm)': round(design_m_star_bot_xx, 0),
+            'M* X (kNm)': round(max(design_m_star_top_x, design_m_star_bot_x), 0),
             'phiMu X Comp (kNm)': round(column_check_results.phi_m_x_comp, 0),
             'phiMu X Tens (kNm)': round(column_check_results.phi_m_x_tens, 0) if column_check_results.phi_m_x_tens is not None else 0,
-            'V bar size': v_bar_size,
-            'Result Flexure X':round( max(safety_factor_flexure_x_1, safety_factor_flexure_x_2), 2)
+            'V bar size': pier_section.v_bar_dia,
+            'Utilisation X':round( max(utilisation_x_1, utilisation_x_2), 2)
         }
 
         # If designing both axes, add additional results
         if self.design_both_axes:
-            designed_pier['M* Top Y-Y (kNm)'] = round(design_m_star_top_yy, 0)
-            designed_pier['M* Bot Y-Y (kNm)'] = round(design_m_star_bot_yy, 0)
+            designed_pier['M* Y (kNm)'] = round(max( design_m_star_top_y, design_m_star_bot_y), 0)
             designed_pier['phiMuY (kNm)'] = round(self.phi_mu_y, 0)
-            designed_pier['Result Flexure Y'] = round( max(safety_factor_flexure_y_1, safety_factor_flexure_y_2), 2)
+            designed_pier['Utilisation Y'] = round( max(utilisation_y_1, utilisation_y_2), 2)
                         
         return designed_pier
 
