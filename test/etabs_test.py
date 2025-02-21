@@ -1,6 +1,6 @@
 import sys
 sys.path.append('C:\_Github\structural_engineering_toolbox')
-from etabs_tools import etabs_api, etabs_design 
+from etabs_tools import etabs_api, etabs_design_v1
 from design_reports import design_reports
 
 etabs_api = etabs_api.etabs_api()
@@ -10,7 +10,8 @@ eq_env_2 = '(88) RS ULS ENV SHEAR' # earthquake envelope factored EQ for amplifi
 wind_env = '(88) WIND ULS ENV' # wind envelope
 
 piers = etabs_api.get_piers(load_cases=[eq_env_1, eq_env_2, wind_env])
-designed_piers_df = etabs_design.design_all_piers(
+
+designed_piers_df = etabs_design_v1.design_all_piers(
     piers=piers,
     eq_env_1=eq_env_1,
     eq_env_2=eq_env_2,

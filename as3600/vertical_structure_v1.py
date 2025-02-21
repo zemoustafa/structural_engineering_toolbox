@@ -130,7 +130,7 @@ NAMED TUPLES - STORE RESULTS
 ColumnMIResults = namedtuple('ColumnMIResults', ['f_m_x', 'f_n_x', 'f_m_y', 'f_n_y', 'balance_point_x', 'balance_point_y'], defaults=(None, None, None, None, None, None))
 
 # Results from column capacity check
-ColumnCapacityResults = namedtuple('ColumnCapacity', ['phi_m_x_comp', 'phi_n_x_comp', 'phi_m_x_tens', 'phi_n_x_tens', 'phi_m_y_comp', 'phi_n_y_comp', 'phi_m_y_tens', 'phi_n_y_tens'], defaults=[None, None, None, None, None, None, None, None])
+ColumnCapacityResults = namedtuple('ColumnCapacity', ['buckling_x', 'buckling_y', 'n_c_x', 'n_c_y', 'result_x', 'phi_m_x_comp', 'phi_n_x_comp', 'phi_m_x_tens', 'phi_n_x_tens', 'result_y','phi_m_y_comp', 'phi_n_y_comp', 'phi_m_y_tens', 'phi_n_y_tens'], defaults=[None, None, None, None, None, None, None, None, None, None, None, None, None, None])
 
 """
 FUNCTIONS
@@ -501,11 +501,12 @@ def check_column_capacity(section:RectangularColumn, loading:Loading, mi_results
     
     '''
     # Check column buckling load is not exceeded
-    n_c = column_buckling_load(section=section, m_ub=mi_results.balance_point_x[0], beta_d=0.5)
-    print('n_c = ' + str(n_c))
-    if loading.n_star_compression > n_c:
+    n_c_x = column_buckling_load(section=section, m_ub=mi_results.balance_point_x[0], beta_d=0.5)
+    n_c_y = column_buckling_load(section=section, m_ub=mi_results.balance_point_y[0], beta_d=0.5) if mi_results.f_m_y is not None else None
 
-        raise ValueError(f"Compression load exceeds column buckling load of {n_c} kN")
+    buckling_x = True if loading.n_star_compression > n_c_x else False
+    if mi_results.f_m_y is not None:
+        buckling_y = True if loading.n_star_compression > n_c_y else False
 
     # Determine if column is short or slender - Cl 10.2
     rx = 0.3 * section.d # Radius of gyration - Cl 10.5.2
@@ -520,18 +521,26 @@ def check_column_capacity(section:RectangularColumn, loading:Loading, mi_results
     # Find the intersection points
     phi_n_x_comp, phi_m_x_comp = __find_intersection(mi_results.f_m_x, mi_results.f_n_x, m_star_x, loading.n_star_compression)
     
-    # If there is tension, find intersection
-    if mi_results.f_m_y is None:
-        if loading.n_star_tension == 0:
-            results = ColumnCapacityResults(phi_n_x_comp=phi_n_x_comp, phi_m_x_comp=phi_m_x_comp)
+    # Determine result based on safety factor phiM / M*
+    result_x = 'Pass' if phi_m_x_comp / m_star_x >= 1 else 'Fail'
 
-        else:
+    # If there is tension, find intersection
+    if mi_results.f_m_y is None: # If there loading/results about y direction, return results about x only
+        if loading.n_star_tension == 0:
+            results = ColumnCapacityResults(buckling_x=buckling_x, n_c_x=n_c_x,result_x=result_x, phi_n_x_comp=phi_n_x_comp, phi_m_x_comp=phi_m_x_comp)
+
+        else: # If tension exists, return tension results as well
             # Run same check but for tensile load (only if tensile load exists)
             phi_n_x_tens, phi_m_x_tens = __find_intersection(mi_results.f_m_x, mi_results.f_n_x, m_star_x, loading.n_star_tension)
-            results = ColumnCapacityResults(phi_n_x_comp=phi_n_x_comp, phi_m_x_comp=phi_m_x_comp, phi_m_x_tens=phi_m_x_tens, phi_n_x_tens=phi_n_x_tens)
+
+            # Determine result based on safety factor phiM / M*
+            result_x = 'Pass' if phi_m_x_tens / m_star_x >= 1 and phi_m_x_comp / m_star_x >= 1 else 'Fail'
+
+            # Return results
+            results = ColumnCapacityResults(buckling_x=buckling_x, n_c_x=n_c_x, result_x=result_x, phi_n_x_comp=phi_n_x_comp, phi_m_x_comp=phi_m_x_comp, phi_m_x_tens=phi_m_x_tens, phi_n_x_tens=phi_n_x_tens)
 
     # If y direction capacity exists, repeat calculations
-    elif mi_results.f_m_y is not None:
+    elif mi_results.f_m_y is not None: # If results about y exists, proceed
         # Determine if column is short or slender - Cl 10.2
         ry = 0.3 * section.b # Radius of gyration - Cl 10.5.2
         slenderness_y = 'Short' if section.h / ry <= 22 else 'Slender'
@@ -545,16 +554,33 @@ def check_column_capacity(section:RectangularColumn, loading:Loading, mi_results
         # Find the intersection points
         phi_n_y_comp, phi_m_y_comp = __find_intersection(mi_results.f_m_y, mi_results.f_n_y, m_star_y, loading.n_star_compression)
 
+        # Determine result based on safety factor phiM / M*
+        result_y = 'Pass' if phi_m_y_comp / m_star_y >= 1 else 'Fail'
+
         # If tension > 0, find intersection
         if loading.n_star_tension == 0:
-            results = ColumnCapacityResults(phi_n_x_comp=phi_n_x_comp, phi_m_x_comp=phi_m_x_comp, phi_n_y_comp=phi_n_y_comp, phi_m_y_comp=phi_m_y_comp)
+            # Return results
+            results = ColumnCapacityResults(buckling_x=buckling_x, n_c_x=n_c_x, result_x=result_x, phi_n_x_comp=phi_n_x_comp, phi_m_x_comp=phi_m_x_comp, result_y=result_y, n_c_y=n_c_y, buckling_y=buckling_y, phi_n_y_comp=phi_n_y_comp, phi_m_y_comp=phi_m_y_comp)
 
         else:
             # Run same check but for tensile load (only if tensile load exists)
             phi_n_y_tens, phi_m_y_tens = __find_intersection(mi_results.f_m_y, mi_results.f_n_y, m_star_y, loading.n_star_tension)
-            results = ColumnCapacityResults(phi_n_x_comp=phi_n_x_comp, phi_m_x_comp=phi_m_x_comp, phi_n_y_comp=phi_n_y_comp, phi_m_y_comp=phi_m_y_comp, phi_n_y_tens=phi_n_y_tens, phi_m_y_tens=phi_m_y_tens)
+
+            # Determine result based on safety factor phiM / M*
+            result_y = 'Pass' if phi_m_y_tens / m_star_y >= 1 and phi_m_y_comp / m_star_y >= 1 else 'Fail'
+
+            # Return results
+            results = ColumnCapacityResults(buckling_x=buckling_x, n_c_x=n_c_x, result_x=result_x, phi_n_x_comp=phi_n_x_comp, phi_m_x_comp=phi_m_x_comp, result_y=result_y, n_c_y=n_c_y, buckling_y=buckling_y, phi_n_y_comp=phi_n_y_comp, phi_m_y_comp=phi_m_y_comp, phi_n_y_tens=phi_n_y_tens, phi_m_y_tens=phi_m_y_tens)
 
     return results
+
+
+
+
+
+
+
+
 
 
 
@@ -581,43 +607,43 @@ def check_column_capacity(section:RectangularColumn, loading:Loading, mi_results
 #     bracing_y=BracingType.BRACED,
 #     )
 
-# input parameters
-wall = RectangularColumn(
-    section_type=SectionType.WALL,
-    fc=50,
-    d=2500,
-    b=300,
-    h=4200,
-    cover=50,
-    v_bar_dia=20,
-    v_bar_cts=200,
-    h_bar_dia=12,
-    h_bar_cts=200,
-    bracing_x=BracingType.UNBRACED,
-    bracing_y=BracingType.BRACED,
-    )
+# # input parameters
+# wall = RectangularColumn(
+#     section_type=SectionType.WALL,
+#     fc=50,
+#     d=2500,
+#     b=300,
+#     h=4200,
+#     cover=50,
+#     v_bar_dia=20,
+#     v_bar_cts=200,
+#     h_bar_dia=12,
+#     h_bar_cts=200,
+#     bracing_x=BracingType.UNBRACED,
+#     bracing_y=BracingType.BRACED,
+#     )
 
-loading = Loading(
-    n_star_compression=20000,
-    n_star_tension=-2000,
-    m_x_top=4000,
-    m_x_bot=0,
-    m_y_top=500,
-    m_y_bot=0,
-    v_star=5000
-)
+# loading = Loading(
+#     n_star_compression=20000,
+#     n_star_tension=-2000,
+#     m_x_top=4000,
+#     m_x_bot=0,
+#     m_y_top=500,
+#     m_y_bot=0,
+#     v_star=5000
+# )
 
-check_both_axes = False
+# check_both_axes = False
 
-# Create interaction diagram for column
-results = rectangular_column_moment_interaction(section=wall, design_both_axes=check_both_axes)
+# # Create interaction diagram for column
+# results = rectangular_column_moment_interaction(section=wall, design_both_axes=check_both_axes)
 
-# Calculate capacity
-column_capacity = check_column_capacity(wall, loading, results)
+# # Calculate capacity
+# column_capacity = check_column_capacity(wall, loading, results)
 
 # # Column shear capacity
 # v_uc, v_us = column_shear_capacity(wall)
-# shear_reo = shear_induced_tension_reinforcement(wall.d, column_capacity.phi_m_x_comp, column_capacity.phi_n_x_comp, loading.v_star, 0.7*v_uc + 0.7*v_us)
+# shear_reo = shear_induced_tension_reinforcement(wall.d, m_star=loading.m_x_top, n_star=loading.n_star_tension, v_star=loading.v_star, phi_vuc = 0.7*v_uc + 0.7*v_us)
 
 # print('Column Design Results')
 # print('---------------------')
@@ -633,6 +659,9 @@ column_capacity = check_column_capacity(wall, loading, results)
 # print('Axial Load (compression): ' + str(loading.n_star_compression) + ' kN')
 # print('Axial Load (tension): ' + str(loading.n_star_tension) + ' kN')
 # print('---------------------')
+# print('Buckling Load: ' + str(round(column_capacity.n_c_x, 0)) + ' kN')
+# print('Is Buckling Load Exceeded: ' + str(column_capacity.buckling_x))
+
 # print('Results X')
 # print('Phi N X C: ' + str(round(column_capacity.phi_n_x_comp, 0))) # intersection with N
 # print('Phi M X C: ' + str(round(column_capacity.phi_m_x_comp, 0))) # intersection with M
@@ -644,6 +673,7 @@ column_capacity = check_column_capacity(wall, loading, results)
 # if column_capacity.phi_m_y_comp is not None:
 #     print('---------------------')
 #     print('Results Y')
+#     print('Buckling Load Y: ' + str(round(column_capacity.n_c_y, 0)) + ' kN')
 #     print('Phi N Y C: ' + str(round(column_capacity.phi_n_y_comp))) # intersection with N
 #     print('Phi M Y C: ' + str(round(column_capacity.phi_m_y_comp))) # intersection with M
 
