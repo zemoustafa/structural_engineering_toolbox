@@ -69,16 +69,16 @@ class PierColumnDesigner:
         return design_m_star_top, design_m_star_bot
     
     def get_design_axial_loads(self):
-        p_max = max(self.pier[self.eq_env_1 + ' Top Max']['p'], self.pier[self.eq_env_1 + ' Bottom Max']['p']) / 1000
-        p_max_tension = 0 if p_max < 0 else -1 * p_max
-        p_max_compression = abs(min(self.pier[self.eq_env_1 + ' Top Min']['p'], self.pier[self.eq_env_1 + ' Bottom Min']['p']) / 1000)
-        return p_max_tension, p_max_compression
+        p_min = -1 * max(self.pier[self.eq_env_1 + ' Top Max']['p'], self.pier[self.eq_env_1 + ' Bottom Max']['p']) / 1000
+        p_max = abs(min(self.pier[self.eq_env_1 + ' Top Min']['p'], self.pier[self.eq_env_1 + ' Bottom Min']['p']) / 1000)
+        return p_max, p_min
     
     def design_pier(self):
         design_v_star = self.get_design_shear_force()
         design_m_star_top_x, design_m_star_bot_x = self.get_design_moment(self.eq_env_1, 'm3')
-        design_m_star_top_y, design_m_star_bot_y = self.get_design_moment(self.eq_env_1, 'm2') if self.design_both_axes else 0, 0
-        p_max_tension, p_max_compression = self.get_design_axial_loads()
+        design_m_star_top_y, design_m_star_bot_y = (self.get_design_moment(self.eq_env_1, 'm2') if self.design_both_axes else (0, 0))
+
+        p_max, p_min = self.get_design_axial_loads()
 
         pier_section = vertical_structure_v1.RectangularColumn(
             section_type=vertical_structure_v1.SectionType.WALL, 
@@ -96,8 +96,8 @@ class PierColumnDesigner:
         )
 
         loading = vertical_structure_v1.Loading(
-            n_star_compression=p_max_compression, 
-            n_star_tension=p_max_tension,
+            n_star_max=p_max, 
+            n_star_min=p_min,
             m_x_top=design_m_star_top_x, 
             m_x_bot=design_m_star_bot_x, 
             m_y_top=design_m_star_top_y if self.design_both_axes else 0, 
@@ -123,18 +123,18 @@ class PierColumnDesigner:
             # Check if passes or fails
             # First, check if design_both_axes is True
             if self.design_both_axes: # If design_both_axes is True
-                if column_check_results.result_x == 'Pass' and column_check_results.result_y_c == 'Pass' and column_check_results.buckling_x == False and column_check_results.buckling_y == False:
+                if column_check_results.result_x == 'Pass' and column_check_results.result_y == 'Pass' and column_check_results.buckling_x == False and column_check_results.buckling_y == False:
                     # Check utilisation of column capacity for both axes
-                    utilisation_x_1 = max(design_m_star_top_x, design_m_star_bot_x) / column_check_results.phi_m_x_comp # Check utilisation under compression load
-                    utilisation_x_2 = max(design_m_star_top_x, design_m_star_bot_x) / column_check_results.phi_m_x_tens if column_check_results.phi_m_x_tens is not None else 0 # Check utilisation under tension load (if applicable)
-                    utilisation_y_1 = max(design_m_star_top_y, design_m_star_bot_y) / column_check_results.phi_m_y_comp # Check utilisation under compression load
-                    utilisation_y_2 = max(design_m_star_top_y, design_m_star_bot_y) / column_check_results.phi_m_y_tens if column_check_results.phi_m_x_tens is not None else 0 # Check utilisation under tension load (if applicable)
+                    utilisation_x_1 = max(design_m_star_top_x, design_m_star_bot_x) / column_check_results.phi_m_x_max # Check utilisation under compression load
+                    utilisation_x_2 = max(design_m_star_top_x, design_m_star_bot_x) / column_check_results.phi_m_x_min if column_check_results.phi_m_x_min is not None else 0 # Check utilisation under tension load (if applicable)
+                    utilisation_y_1 = max(design_m_star_top_y, design_m_star_bot_y) / column_check_results.phi_m_y_max # Check utilisation under compression load
+                    utilisation_y_2 = max(design_m_star_top_y, design_m_star_bot_y) / column_check_results.phi_m_y_min if column_check_results.phi_m_x_min is not None else 0 # Check utilisation under tension load (if applicable)
                     break
             else: # If design_both_axes is False
                 if column_check_results.result_x == 'Pass' and column_check_results.buckling_x == False:
                     # Check utilisation of column capacity for strong axis only
-                    utilisation_x_1 = max(design_m_star_top_x, design_m_star_bot_x) / column_check_results.phi_m_x_comp # Check utilisation under compression load
-                    utilisation_x_2 = max(design_m_star_top_x, design_m_star_bot_x) / column_check_results.phi_m_x_tens if column_check_results.phi_m_x_tens is not None else 0 # Check utilisation under tension load (if applicable)
+                    utilisation_x_1 = max(design_m_star_top_x, design_m_star_bot_x) / column_check_results.phi_m_x_max # Check utilisation under compression load
+                    utilisation_x_2 = max(design_m_star_top_x, design_m_star_bot_x) / column_check_results.phi_m_x_min if column_check_results.phi_m_x_min is not None else 0 # Check utilisation under tension load (if applicable)
                     break
 
         # Design for shear
@@ -166,20 +166,23 @@ class PierColumnDesigner:
             'phiVu (kN)': round(phi_vu, 0),
             'H bar size': pier_section.h_bar_dia,
             'Utilisation Shear': round(safety_factor_shear, 2),
-            'P* Max Compression (kN)': round(p_max_compression, 0),
-            'P* Max Tension (kN)': round(p_max_tension, 0),
+            'P* Max (kN)': round(p_max, 0),
+            'P* Min (kN)': round(p_min, 0),
             'M* X (kNm)': round(max(design_m_star_top_x, design_m_star_bot_x), 0),
-            'phiMu X Comp (kNm)': round(column_check_results.phi_m_x_comp, 0),
-            'phiMu X Tens (kNm)': round(column_check_results.phi_m_x_tens, 0) if column_check_results.phi_m_x_tens is not None else 0,
+            'phiMu X Max (kNm)': round(column_check_results.phi_m_x_max, 0),
+            'phiMu X Min (kNm)': round(column_check_results.phi_m_x_min, 0) if column_check_results.phi_m_x_min is not None else 0,
             'V bar size': pier_section.v_bar_dia,
-            'Utilisation X':round( max(utilisation_x_1, utilisation_x_2), 2)
+            'Utilisation X Max':round(utilisation_x_1, 2),
+            'Utilisation X Min':round(utilisation_x_2, 2)
         }
 
         # If designing both axes, add additional results
         if self.design_both_axes:
             designed_pier['M* Y (kNm)'] = round(max( design_m_star_top_y, design_m_star_bot_y), 0)
-            designed_pier['phiMuY (kNm)'] = round(self.phi_mu_y, 0)
-            designed_pier['Utilisation Y'] = round( max(utilisation_y_1, utilisation_y_2), 2)
+            designed_pier['phiMu Y Max (kNm)'] = round(column_check_results.phi_m_y_max, 0)
+            designed_pier['phiMu Y Min (kNm)'] = round(column_check_results.phi_m_y_min, 0)
+            designed_pier['Utilisation Y Max'] = round(utilisation_y_1, 2)
+            designed_pier['Utilisation Y Min'] = round(utilisation_y_2, 2)
                         
         return designed_pier
 
