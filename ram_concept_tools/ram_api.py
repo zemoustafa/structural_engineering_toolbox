@@ -235,5 +235,5 @@ def adjust_high_points(model_path:str, tendon_direction:str, cover:float, layer:
     concept.shut_down()
 
 
-model_path = r"C:\Users\zeyad.moustafa\OneDrive - Pritchard Francis\Documents\RAM API Tests\241119 23-064 Level 2 Flat Plate Option 1.6 DL 260 thk ZM.cpt"
-adjust_high_points(model_path, 'Latitude', 30, 'Primary')
+# model_path = r"C:\Users\zeyad.moustafa\OneDrive - Pritchard Francis\Documents\RAM API Tests\241119 23-064 Level 2 Flat Plate Option 1.6 DL 260 thk ZM.cpt"
+# adjust_high_points(model_path, 'Latitude', 30, 'Primary')

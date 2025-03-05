@@ -289,15 +289,33 @@ def __calculate_effective_shear_depth(d, cover, v_bar_dia, v_bar_cts, h_bar_dia)
 
 
 def shear_induced_tension_reinforcement(d:float, m_star:float, n_star:float, v_star:float, phi_vuc:float):
-    
-    theta_v_rads = math.radians(36)
-    f_tds = 0.5 * ( v_star + phi_vuc)*1000 * (1 / math.tan(theta_v_rads) )
-    
-    z = d / 4
+    '''
+    Calculates additional longitudinal reinforcement caused by shear and/or torsion (not applicable) - C8.2.7
 
-    t_td = ( m_star * 1e6 / z ) + ( n_star*1000 / 2 ) + f_tds
+    Parameters:
+    d (float): total depth of section
+    m_star (float): applied moment
+    n_star (float): applied axial load (compression is -ve, tension is +ve) - C8.2.8.2 (2)
+    v_star (float): applied shear force
+    phi_vuc (float): concrete contribution to shear strength
 
-    a_st = t_td * 0.85 / DEFAULY_FSY
+    Returns:
+    a_st (float): area of additional longitudinal reinforcement
+
+    '''
+
+    # Additional longitudinal reinforcement caused by shear - C8.2.7 (2)
+    angle_rads = math.radians(DEFAULT_SHEAR_ANGLE)
+    f_tds = 0.5 * ( v_star + phi_vuc) * ( math.cos(angle_rads) / math.sin(angle_rads) )
+    
+    # Internal lever arm between centroids of resultant flexural compression force acting on section and resultant flexural tension force
+    z = d / 4 # C8.2.8.2 (i)
+
+    # Total tension force at every section - C8.2.8.2 (1)
+    t_td = ( m_star / z ) + ( (-1*n_star) / 2 ) + f_tds
+
+    # Area of additional longitudinal reinforcement - C8.2.8.2 (2)
+    a_st = t_td * 1000 / (0.85 / DEFAULY_FSY)
 
     return a_st
 
@@ -628,81 +646,81 @@ def check_column_capacity(section:RectangularColumn, loading:Loading, mi_results
 #     )
 
 # input parameters
-# wall = RectangularColumn(
-#     section_type=SectionType.WALL,
-#     fc=50,
-#     d=2500,
-#     b=300,
-#     h=4200,
-#     cover=50,
-#     v_bar_dia=20,
-#     v_bar_cts=200,
-#     h_bar_dia=12,
-#     h_bar_cts=200,
-#     bracing_x=BracingType.UNBRACED,
-#     bracing_y=BracingType.BRACED,
-#     )
+wall = RectangularColumn(
+    section_type=SectionType.WALL,
+    fc=50,
+    d=2500,
+    b=300,
+    h=4200,
+    cover=30,
+    v_bar_dia=20,
+    v_bar_cts=200,
+    h_bar_dia=12,
+    h_bar_cts=200,
+    bracing_x=BracingType.UNBRACED,
+    bracing_y=BracingType.BRACED,
+    )
 
-# loading = Loading(
-#     n_star_max=20000,
-#     n_star_min=4000,
-#     m_x_top=4000,
-#     m_x_bot=0,
-#     m_y_top=500,
-#     m_y_bot=0,
-#     v_star=5000
-# )
+loading = Loading(
+    n_star_max=10000,
+    n_star_min=4000,
+    m_x_top=4000,
+    m_x_bot=0,
+    m_y_top=500,
+    m_y_bot=0,
+    v_star=5000
+)
 
-# check_both_axes = False
+check_both_axes = False
 
-# # Create interaction diagram for column
-# results = rectangular_column_moment_interaction(section=wall, design_both_axes=check_both_axes)
+# Create interaction diagram for column
+results = rectangular_column_moment_interaction(section=wall, design_both_axes=check_both_axes)
 
-# # Calculate capacity
-# column_capacity = check_column_capacity(wall, loading, results)
+# Calculate capacity
+column_capacity = check_column_capacity(wall, loading, results)
 
-# # Column shear capacity
-# v_uc, v_us = column_shear_capacity(wall)
-# shear_reo = shear_induced_tension_reinforcement(wall.d, m_star=loading.m_x_top, n_star=loading.n_star_min, v_star=loading.v_star, phi_vuc = 0.7*v_uc + 0.7*v_us)
+# Column shear capacity
+v_uc, v_us = column_shear_capacity(wall)
+shear_reo = shear_induced_tension_reinforcement(wall.d, m_star=loading.m_x_top, n_star=loading.n_star_min, v_star=loading.v_star, phi_vuc = 0.7*v_uc)
 
-# print('Column Design Results')
-# print('---------------------')
-# print('Column Dimensions: ' + str(wall.b) + ' x ' + str(wall.d) + ' mm')
-# print('Concrete Strength: ' + str(wall.fc) + ' MPa')
-# print('Vertical Bar Diameter: ' + str(wall.v_bar_dia) + ' mm')
-# print('Vertical Bar Spacing: ' + str(wall.v_bar_cts) + ' mm')
-# print('Horizontal Bar Diameter: ' + str(wall.h_bar_dia) + ' mm')
-# print('Horizontal Bar Spacing: ' + str(wall.h_bar_cts) + ' mm')
-# print('Numnber of bars x: ' + str(wall.n_bars_x))
-# print('Numnber of bars y: ' + str(wall.n_bars_y))
-# print('Cover to Reinforcement: ' + str(wall.cover) + ' mm')
-# print('Axial Load (max): ' + str(loading.n_star_max) + ' kN')
-# print('Axial Load (min): ' + str(loading.n_star_min) + ' kN')
-# print('---------------------')
-# print('Buckling Load: ' + str(round(column_capacity.n_c_x, 0)) + ' kN')
-# print('Is Buckling Load Exceeded: ' + str(column_capacity.buckling_x))
+print('Column Design Results')
+print('---------------------')
+print('Column Dimensions: ' + str(wall.b) + ' x ' + str(wall.d) + ' mm')
+print('Concrete Strength: ' + str(wall.fc) + ' MPa')
+print('Vertical Bar Diameter: ' + str(wall.v_bar_dia) + ' mm')
+print('Vertical Bar Spacing: ' + str(wall.v_bar_cts) + ' mm')
+print('Horizontal Bar Diameter: ' + str(wall.h_bar_dia) + ' mm')
+print('Horizontal Bar Spacing: ' + str(wall.h_bar_cts) + ' mm')
+print('Numnber of bars x: ' + str(wall.n_bars_x))
+print('Numnber of bars y: ' + str(wall.n_bars_y))
+print('Cover to Reinforcement: ' + str(wall.cover) + ' mm')
+print('Axial Load (max): ' + str(loading.n_star_max) + ' kN')
+print('Axial Load (min): ' + str(loading.n_star_min) + ' kN')
+print('---------------------')
+print('Buckling Load: ' + str(round(column_capacity.n_c_x, 0)) + ' kN')
+print('Is Buckling Load Exceeded: ' + str(column_capacity.buckling_x))
 
-# print('Results X')
-# print('Phi N X Max: ' + str(round(column_capacity.phi_n_x_max, 0))) # intersection with N
-# print('Phi M X Max: ' + str(round(column_capacity.phi_m_x_max, 0))) # intersection with M
+print('Results X')
+print('Phi N X Max: ' + str(round(column_capacity.phi_n_x_max, 0))) # intersection with N
+print('Phi M X Max: ' + str(round(column_capacity.phi_m_x_max, 0))) # intersection with M
 
-# if column_capacity.phi_m_x_min is not None:
-#     print('Phi N X Min: ' + str(round(column_capacity.phi_n_x_min))) # intersection with N
-#     print('Phi M X Min: ' + str(round(column_capacity.phi_m_x_min))) # intersection with M
+if column_capacity.phi_m_x_min is not None:
+    print('Phi N X Min: ' + str(round(column_capacity.phi_n_x_min))) # intersection with N
+    print('Phi M X Min: ' + str(round(column_capacity.phi_m_x_min))) # intersection with M
 
-# if column_capacity.phi_m_y_max is not None:
-#     print('---------------------')
-#     print('Results Y')
-#     print('Buckling Load Y: ' + str(round(column_capacity.n_c_y, 0)) + ' kN')
-#     print('Phi N Y Max: ' + str(round(column_capacity.phi_n_y_max))) # intersection with N
-#     print('Phi M Y Max: ' + str(round(column_capacity.phi_m_y_max))) # intersection with M
+if column_capacity.phi_m_y_max is not None:
+    print('---------------------')
+    print('Results Y')
+    print('Buckling Load Y: ' + str(round(column_capacity.n_c_y, 0)) + ' kN')
+    print('Phi N Y Max: ' + str(round(column_capacity.phi_n_y_max))) # intersection with N
+    print('Phi M Y Max: ' + str(round(column_capacity.phi_m_y_max))) # intersection with M
 
-# if column_capacity.phi_m_y_min is not None:
-#     print('Phi N Y Min: ' + str(round(column_capacity.phi_n_y_min))) # intersection with N
-#     print('Phi M Y Min: ' + str(round(column_capacity.phi_m_y_min))) # intersection with M
+if column_capacity.phi_m_y_min is not None:
+    print('Phi N Y Min: ' + str(round(column_capacity.phi_n_y_min))) # intersection with N
+    print('Phi M Y Min: ' + str(round(column_capacity.phi_m_y_min))) # intersection with M
 
-# shear_pass_fail = 'Pass' if 0.7*v_uc + 0.7*v_us > loading.v_star else 'Fail'
-# print('Shear Capacity Results: ' + shear_pass_fail)
-# print('Concrete Shear Capacity: ' + str(round(v_uc, 1)) + ' kN') # concrete shear capacity
-# print('Steel Shear Capacity: ' + str(round(v_us, 1)) + ' kN') # steel shear capacity
-# print('Addiitonal reo = ' + str(shear_reo) + ' mm2')
+shear_pass_fail = 'Pass' if 0.7*v_uc + 0.7*v_us > loading.v_star else 'Fail'
+print('Shear Capacity Results: ' + shear_pass_fail)
+print('Concrete Shear Capacity: ' + str(round(v_uc, 1)) + ' kN') # concrete shear capacity
+print('Steel Shear Capacity: ' + str(round(v_us, 1)) + ' kN') # steel shear capacity
+print('Addiitonal reo = ' + str(shear_reo) + ' mm2')

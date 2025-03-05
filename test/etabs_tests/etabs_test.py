@@ -11,9 +11,9 @@ for _ in tqdm(range(10), desc="Processing"):
 
 etabs_api = etabs_api.etabs_api()
 
-eq_env_1 = '(88) RS ULS ENV' # earthquake envelope unfactored EQ for moment design
-eq_env_2 = '(88) RS ULS ENV mu=1' # earthquake envelope factored EQ for amplified shear design
-wind_env = '(88) WIND ULS ENV' # wind envelope
+eq_env_1 = 'fE:G+0.3Q+EQRS u=2+Su' # earthquake envelope unfactored EQ for moment design
+eq_env_2 = 'fE:G+0.3Q+EQRS u=1+Su' # earthquake envelope factored EQ for amplified shear design
+wind_env = 'R:Wind Ult' # wind envelope
 
 piers = etabs_api.get_piers(load_cases=[eq_env_1, eq_env_2, wind_env])
 
