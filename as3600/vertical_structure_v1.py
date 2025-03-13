@@ -613,114 +613,57 @@ def check_column_capacity(section:RectangularColumn, loading:Loading, mi_results
     return results
 
 
+def boundary_element(wall:RectangularColumn, loading:Loading):
+    '''
+    Calculates boundary element length and ligs for a wall based on AS3600:2018 Section 14.5.4
+    
+    Parameters:
+    wall (RectangularColumn): ConcreteSection object
+    loading (Loading): Loading object
+    
+    Returns:
+    be_length (float): Length of boundary element
+    lig_dia (float): Diameter of ligatures
+    lig_cts (float): Spacing of ligatures
+
+    '''
+    # Check section type is wall
+    if wall.section_type != SectionType.WALL:
+        raise ValueError("Section type must be 'Wall'.")
+
+    # Calculate boundary element length
+    be_width = max(0.15 * wall.d, 1.5 * wall.b)
+
+    # Calculate ligature diameter
+    if wall.v_bar_dia > 28:
+        lig_dia = 12
+    else:
+        lig_dia = 10
+    
+    # Calculate compressive stress due to earthquake induced moment (convert to N and Nmm)
+    comp_stress = loading.n_star_max*1e3 / (wall.b * wall.d) + max(abs(loading.m_x_top), abs(loading.m_x_bot))*1e6 / (wall.b * wall.d**2 / 6)
+
+    # Determine ligature spacing
+    if comp_stress >= 0.2 * wall.fc:
+        # Clause 14.5.4 - Columns
+        lig_cts = round( min(8 * wall.v_bar_dia, 24 * lig_dia, 0.5 * wall.b, 300), 0)
+
+    elif 0.2 * wall.fc >= comp_stress > 0.15 * wall.fc:
+        # Clause 10.7.4.3 Diameter and spacing of fitments and helices
+        lig_cts = round( min(wall.b, 15 * wall.v_bar_dia), 0)
+
+    elif comp_stress > 0.585 * wall.fc:
+        # Clause 10.7.4.3 Diameter and spacing of fitments and helices
+        be_width = "Increase f'c or wall thickness"
+        lig_cts = "FAIL"
+        lig_dia = "FAIL"
+
+    else:
+        be_width = "Not required"
+        lig_cts = "Not required"
+        lig_dia = "Not required"
+
+    return be_width, lig_dia, lig_cts
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# column = RectangularColumn(
-#     section_type=SectionType.COLUMN,
-#     fc=50,
-#     d=600,
-#     b=300,
-#     h=3000,
-#     cover=50,
-#     v_bar_dia=20,
-#     n_bars_x=2,
-#     n_bars_y=5,
-#     h_bar_dia=12,
-#     bracing_x=BracingType.BRACED,
-#     bracing_y=BracingType.BRACED,
-#     )
-
-# input parameters
-wall = RectangularColumn(
-    section_type=SectionType.WALL,
-    fc=50,
-    d=2500,
-    b=300,
-    h=4200,
-    cover=30,
-    v_bar_dia=20,
-    v_bar_cts=200,
-    h_bar_dia=12,
-    h_bar_cts=200,
-    bracing_x=BracingType.UNBRACED,
-    bracing_y=BracingType.BRACED,
-    )
-
-loading = Loading(
-    n_star_max=10000,
-    n_star_min=4000,
-    m_x_top=4000,
-    m_x_bot=0,
-    m_y_top=500,
-    m_y_bot=0,
-    v_star=5000
-)
-
-check_both_axes = False
-
-# Create interaction diagram for column
-results = rectangular_column_moment_interaction(section=wall, design_both_axes=check_both_axes)
-
-# Calculate capacity
-column_capacity = check_column_capacity(wall, loading, results)
-
-# Column shear capacity
-v_uc, v_us = column_shear_capacity(wall)
-shear_reo = shear_induced_tension_reinforcement(wall.d, m_star=loading.m_x_top, n_star=loading.n_star_min, v_star=loading.v_star, phi_vuc = 0.7*v_uc)
-
-print('Column Design Results')
-print('---------------------')
-print('Column Dimensions: ' + str(wall.b) + ' x ' + str(wall.d) + ' mm')
-print('Concrete Strength: ' + str(wall.fc) + ' MPa')
-print('Vertical Bar Diameter: ' + str(wall.v_bar_dia) + ' mm')
-print('Vertical Bar Spacing: ' + str(wall.v_bar_cts) + ' mm')
-print('Horizontal Bar Diameter: ' + str(wall.h_bar_dia) + ' mm')
-print('Horizontal Bar Spacing: ' + str(wall.h_bar_cts) + ' mm')
-print('Numnber of bars x: ' + str(wall.n_bars_x))
-print('Numnber of bars y: ' + str(wall.n_bars_y))
-print('Cover to Reinforcement: ' + str(wall.cover) + ' mm')
-print('Axial Load (max): ' + str(loading.n_star_max) + ' kN')
-print('Axial Load (min): ' + str(loading.n_star_min) + ' kN')
-print('---------------------')
-print('Buckling Load: ' + str(round(column_capacity.n_c_x, 0)) + ' kN')
-print('Is Buckling Load Exceeded: ' + str(column_capacity.buckling_x))
-
-print('Results X')
-print('Phi N X Max: ' + str(round(column_capacity.phi_n_x_max, 0))) # intersection with N
-print('Phi M X Max: ' + str(round(column_capacity.phi_m_x_max, 0))) # intersection with M
-
-if column_capacity.phi_m_x_min is not None:
-    print('Phi N X Min: ' + str(round(column_capacity.phi_n_x_min))) # intersection with N
-    print('Phi M X Min: ' + str(round(column_capacity.phi_m_x_min))) # intersection with M
-
-if column_capacity.phi_m_y_max is not None:
-    print('---------------------')
-    print('Results Y')
-    print('Buckling Load Y: ' + str(round(column_capacity.n_c_y, 0)) + ' kN')
-    print('Phi N Y Max: ' + str(round(column_capacity.phi_n_y_max))) # intersection with N
-    print('Phi M Y Max: ' + str(round(column_capacity.phi_m_y_max))) # intersection with M
-
-if column_capacity.phi_m_y_min is not None:
-    print('Phi N Y Min: ' + str(round(column_capacity.phi_n_y_min))) # intersection with N
-    print('Phi M Y Min: ' + str(round(column_capacity.phi_m_y_min))) # intersection with M
-
-shear_pass_fail = 'Pass' if 0.7*v_uc + 0.7*v_us > loading.v_star else 'Fail'
-print('Shear Capacity Results: ' + shear_pass_fail)
-print('Concrete Shear Capacity: ' + str(round(v_uc, 1)) + ' kN') # concrete shear capacity
-print('Steel Shear Capacity: ' + str(round(v_us, 1)) + ' kN') # steel shear capacity
-print('Addiitonal reo = ' + str(shear_reo) + ' mm2')

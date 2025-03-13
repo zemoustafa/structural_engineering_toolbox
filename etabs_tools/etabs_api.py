@@ -39,6 +39,7 @@ class etabs_api:
         :param load_cases: list of load case names in etabs model
         :return walls: list of dicts. each dict contains wall properties, geometry and forces
         """
+
         piers = []
         pier_forces = self.get_pier_forces(load_cases)
 

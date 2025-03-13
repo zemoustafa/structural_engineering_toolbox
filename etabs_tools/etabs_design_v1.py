@@ -11,7 +11,7 @@ import pandas as pd
 import math
 
 class PierColumnDesigner:
-    def __init__(self, pier, eq_env_1, eq_env_2, wind_env, vertical_spacing, horizontal_spacing, design_both_axes):
+    def __init__(self, pier, eq_env_1, eq_env_2, wind_env, vertical_spacing, horizontal_spacing, design_both_axes, design_boundary_element):
         self.pier = pier
         self.eq_env_1 = eq_env_1
         self.eq_env_2 = eq_env_2
@@ -19,6 +19,7 @@ class PierColumnDesigner:
         self.vertical_spacing = vertical_spacing
         self.horizontal_spacing = horizontal_spacing
         self.design_both_axes = design_both_axes
+        self.design_boundary_element = design_boundary_element
         self.bar_sizes = [12, 16, 20, 24, 28, 32, 36, 40]
         self.extract_pier_properties()
     
@@ -183,12 +184,19 @@ class PierColumnDesigner:
             designed_pier['phiMu Y Min (kNm)'] = round(column_check_results.phi_m_y_min, 0)
             designed_pier['Utilisation Y Max'] = round(utilisation_y_1, 2)
             designed_pier['Utilisation Y Min'] = round(utilisation_y_2, 2)
-                        
+
+        # Calculate boundary element (if required)
+        if self.design_boundary_element:
+            be_length, lig_size, lig_spacing = vertical_structure_v1.boundary_element(pier_section, loading)
+            designed_pier['BE Length (mm)'] = be_length
+            designed_pier['Lig Size (mm)'] = lig_size
+            designed_pier['Lig Spacing (mm)'] = lig_spacing
+
         return designed_pier
 
 
-def design_etabs_pier_as_column(pier, eq_env_1, eq_env_2, wind_env, vertical_spacing, horizontal_spacing, design_both_axes):
-    designer = PierColumnDesigner(pier, eq_env_1, eq_env_2, wind_env, vertical_spacing, horizontal_spacing, design_both_axes)
+def design_etabs_pier_as_column(pier, eq_env_1, eq_env_2, wind_env, vertical_spacing, horizontal_spacing, design_both_axes, design_boundary_element):
+    designer = PierColumnDesigner(pier, eq_env_1, eq_env_2, wind_env, vertical_spacing, horizontal_spacing, design_both_axes, design_boundary_element)
     return designer.design_pier()
 
 
@@ -199,7 +207,8 @@ def design_all_piers(
         wind_env:str, 
         vertical_spacing:float, 
         horizontal_spacing:float,
-        design_both_axes:bool
+        design_both_axes:bool,
+        design_boundary_element:bool
         ):
     '''
     Design all piers in an ETABS model in one go
@@ -230,6 +239,7 @@ def design_all_piers(
             vertical_spacing, 
             horizontal_spacing,
             design_both_axes,
+            design_boundary_element
             )
         designed_piers.append(designed_pier)
 
@@ -239,6 +249,7 @@ def design_all_piers(
 
 
 def filter_bar_sizes(fc: float, story: str, story_names: list, phz_levels: list, vertical_spacing: float, b: float):
+
     # Define bar sizes
     bar_sizes = [12, 16, 20, 24, 28, 32, 36, 40]
     
@@ -254,3 +265,19 @@ def filter_bar_sizes(fc: float, story: str, story_names: list, phz_levels: list,
             filtered_bar_sizes.append(bar_size)
     
     return filtered_bar_sizes
+
+def min_tension_reinforcement(fc:float, story:str, story_names:list, phz_levels:list):
+    fsy = 500
+    rho_wv_crit = (0.7 * fc**0.5) / fsy  # minimum vertical reinforcement ratio
+    rho_wv_typ = (0.35 * fc**0.5) / fsy
+
+    if story not in phz_levels:
+        current_story_index = story_names.index(story)
+        end_phz_index = story_names.index(phz_levels[-1])
+        difference = current_story_index - end_phz_index
+        rho_wv_crit = 0 # = not required
+        for i in range(difference):
+            rho_wv_typ = max(rho_wv_typ * 0.9, 0.0025)
+    else:
+        pass
+    return rho_wv_crit, rho_wv_typ

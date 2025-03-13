@@ -3,4 +3,4 @@ pandas
 plotly
 comtypes
 xlsxwriter
-streamlit
+concreteproperties
