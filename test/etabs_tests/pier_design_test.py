@@ -11,7 +11,7 @@ etabs_api = etabs_api.etabs_api()
 # Once we have the load case names, let the user select the relevant case for each envelope from a list or dropdown
 # Envelopes need to be Earthquake Flexure, Earthquake Shear, and Wind
 eq_env_1 = '(88) RS ULS ENV' # Earthquake Flexure -> earthquake envelope unfactored EQ for moment design
-eq_env_2 = '(88) RS ULS ENV SHEAR' # Earthquake Shear -> earthquake envelope factored EQ for amplified shear design
+eq_env_2 = '(88) RS ULS ENV mu=1' # Earthquake Shear -> earthquake envelope factored EQ for amplified shear design
 wind_env = '(88) WIND ULS ENV' # Wind -> wind envelope
 
 # Once load cases are selected:
