@@ -1,24 +1,31 @@
 import sys
 sys.path.append(r"C:\_Github\structural_engineering_toolbox")
-from ram_concept_tools import ram_api
+from ram_concept_tools import ram_api_v1 as ram_api
 
 # file paths
 
-file_path_list = [
-r"C:\Users\zeyad.moustafa\OneDrive - Pritchard Francis\Documents\RAM API Tests\Load Rundown\250226 - Level 8.cpt",
-r"C:\Users\zeyad.moustafa\OneDrive - Pritchard Francis\Documents\RAM API Tests\Load Rundown\250226 - Level 7.cpt",
-r"C:\Users\zeyad.moustafa\OneDrive - Pritchard Francis\Documents\RAM API Tests\Load Rundown\250226 - Level 6.cpt",
-r"C:\Users\zeyad.moustafa\OneDrive - Pritchard Francis\Documents\RAM API Tests\Load Rundown\250226 - Level 5.cpt",
-r"C:\Users\zeyad.moustafa\OneDrive - Pritchard Francis\Documents\RAM API Tests\Load Rundown\250226 - Level 4.cpt",
-r"C:\Users\zeyad.moustafa\OneDrive - Pritchard Francis\Documents\RAM API Tests\Load Rundown\250226 - Level 3.cpt",
-r"C:\Users\zeyad.moustafa\OneDrive - Pritchard Francis\Documents\RAM API Tests\Load Rundown\250226 - Level 2.cpt",
-r"C:\Users\zeyad.moustafa\OneDrive - Pritchard Francis\Documents\RAM API Tests\Load Rundown\250110 - Level 1 Podium.cpt",
-r"C:\Users\zeyad.moustafa\OneDrive - Pritchard Francis\Documents\RAM API Tests\Load Rundown\250304 - Upper Ground.cpt"
-]
+# file_path_list = [
+# r"C:\Temp\Load Rundown\Level 8.cpt",
+# r"C:\Temp\Load Rundown\Level 7.cpt",
+# r"C:\Temp\Load Rundown\Level 6.cpt",
+# r"C:\Temp\Load Rundown\Level 5.cpt",
+# r"C:\Temp\Load Rundown\Level 4.cpt",
+# r"C:\Temp\Load Rundown\Level 3.cpt",
+# r"C:\Temp\Load Rundown\Level 2.cpt",
+# r"C:\Temp\Load Rundown\Level 1.cpt",
+# r"C:\Temp\Load Rundown\Upper Ground.cpt"
+# ]
 
-for i in range(len(file_path_list) - 1):
-    ram_api.delete_exisitng_loads(file_path_list[i + 1])
+ram_api.delete_existing_loads(r"C:\Temp\Load Rundown\Level 7.cpt")
+pass
+# for i in range(len(file_path_list) - 1):
+#     reaction_path = file_path_list[i]
+#     target_path = file_path_list[i + 1]
 
-    reaction_path = file_path_list[i]
-    target_path = file_path_list[i + 1]
-    ram_api.ram_load_rundown(reaction_path, target_path)
+#     print("Opening file " + reaction_path) # opens reaction path
+#     ram_api.delete_exisitng_loads(target_path) # deletes loads in target path
+
+#     print("Applying loads to file " + target_path)
+#     ram_api.ram_load_rundown(reaction_path, target_path)
+#     print("Finished file " + target_path)
+#     print('---------------------------------------------------')
