@@ -5,7 +5,11 @@ import sys
 sys.path.append(r"C:\Program Files\Bentley\Engineering\RAM Concept\RAM Concept 2023\python")
 import ram_concept
 
-from ram_concept.concept import Concept
+from ram_concept.concept import Concept, Model
+from ram_concept.column import Column, DefaultColumn
+from ram_concept.wall import Wall, DefaultWall
+from ram_concept.concrete import Concrete
+from ram_concept.concretes import Concretes
 from ram_concept.cad_manager import CadManager
 from ram_concept.result_layers import ReactionContext
 from ram_concept.point_2D import Point2D
@@ -22,6 +26,10 @@ class RamConcept:
         """Create instance of Concept class."""
         self.concept = Concept.start_concept(headless=True)
 
+    def open_model(self, file_path: str) -> Model:
+        """Open a RAM Concept model."""
+        return self.concept.open_file(file_path)
+    
     def shutdown_concept(self):
         """Shuts down the Concept instance."""
         self.concept.shut_down()
@@ -269,3 +277,70 @@ def delete_existing_loads(model_path:str, concept:Concept, progress_queue=None):
         if concept:
             _send_progress(f"  Load deletion complete.\n")
 
+
+def create_column(model:Model, column_data:dict=None, load_case_names:list[str]=None, progress_queue=None):
+    '''
+    Creates a column in the target model based on column data and loading from ETABS.
+    Sends progress updates to the provided queue.
+
+    Args:
+        model_path (str): Path to the RAM Concept file to modify.
+        progress_queue (queue.Queue, optional): Queue for sending progress messages.
+    '''
+    # Helper function to send progress messages
+    def _send_progress(message):
+        if progress_queue:
+            progress_queue.put(message)
+        else:
+            print(message)
+
+    # Step 1 - Open StructureLayer (mesh input in UI)
+    _send_progress('Step 1 - Open StructureLayer (mesh input in UI)\n')
+    cad_manager = model.cad_manager
+    structure_layer = cad_manager.structure_layer
+
+    # Step 2 - Set default properties of column before placing
+    _send_progress('Step 2 - Set default properties of column before placing\n')
+    # for convenience we'll use the concrete mix we defined earlier
+    concretes = model.concretes
+    concrete_40 = concretes.concrete("40 MPa")
+    
+    # Now set remaining properties
+    default_column = cad_manager.default_column
+    default_column.angle = 90 + column_data['Angle']
+    default_column.below_slab = False
+    default_column.compressible = True
+    default_column.concrete = concrete_40
+    default_column.b = column_data['B']
+    default_column.d = column_data['D']
+    default_column.height = column_data['H'] / 1000
+    default_column.i_factor = 1.0
+    default_column.fixed_near = True
+    default_column.fixed_far = True
+    default_column.roller = False
+    default_column.use_specified_LLR_parameters = False
+    
+    # Step 3 - Place column in location with Point2D
+    _send_progress('Step 3 - Place column in location with Point2D\n')
+    _send_progress (f'Location: {column_data["Point 2 X"]/1000}, {column_data["Point 2 Y"]/1000}\n')
+    column_location = Point2D(column_data['Point 2 X']/1000, column_data['Point 2 Y']/1000)
+    structure_layer.add_column(column_location)
+
+    # Step 4 - Add loading to each layer, starting with Other Dead Loading
+    _send_progress('Step 4 - Add loading to each layer, starting with Other Dead Loading\n')
+    dead_loading_layer = cad_manager.force_loading_layer("Other Dead Loading")
+    dead_load_case_name = load_case_names[0] # Use first load case name
+
+    dead_point_load = dead_loading_layer.add_point_load(column_location) # Add point load to Point2D location
+    dead_point_load.Fz = max(abs(load) for load in column_data[dead_load_case_name]['P']) / 1000 # Set the load value to the value from the load case data
+
+    # Step 5 - Now add load to Unreducible Live Load layer
+    _send_progress('Step 5 - Now add load to Unreducible Live Load layer\n')
+    live_loading_layer = cad_manager.force_loading_layer("Live (Unreducible) Loading")
+    live_load_case_name = load_case_names[1] # Use second load case name
+
+    live_point_load = live_loading_layer.add_point_load(column_location) # Add point load to Point2D location
+    live_point_load.Fz = max(abs(load) for load in column_data[live_load_case_name]['P']) / 1000 # Set the load value to the value from the load case data
+
+    _send_progress('Column creation complete.\n')
+    # Done

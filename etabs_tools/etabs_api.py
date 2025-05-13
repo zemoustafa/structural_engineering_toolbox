@@ -398,7 +398,7 @@ class etabs_api:
 
         return wall_objs
     
-    def get_columns_on_story(self, story_name:str, load_case_names:list[str]=None) -> list[dict]:
+    def get_columns_on_story(self, story_name:str, load_case_names:list[str]=None, progress_queue=None) -> list[dict]:
         """ Get pier property forces for selected load cases
 
         :param story_name: name of story
@@ -406,11 +406,20 @@ class etabs_api:
 
         :return columns: list of dicts containing framce forces each load case in list
         """
+    # Helper function to send progress messages
+        def _send_progress(message):
+            if progress_queue:
+                progress_queue.put(message)
+            else:
+                print(message)
+
         # Step 1 - Grab all frame objects on a certain story
+        _send_progress(f'Step 1 - Grab all frame objects on {story_name}.\n')
         frame_names_on_story = self.sap_model.FrameObj.GetNameListOnStory(story_name) # Story name will be an input
         frame_names = frame_names_on_story[1] # Frame object names
 
         # Step 2 - Filter out beams, only keep columns
+        _send_progress('Step 2 - Filter out beams, only keep columns.\n')
         columns = []
         for frame_name in frame_names:
             # Get the two joints either side of the frame
@@ -434,8 +443,10 @@ class etabs_api:
                     'Story': story_name,
                 }
                 columns.append(column)
+                _send_progress('Column found: ' + frame_name + '. Added to column list.\n')
 
         # Step 3 - Grab the properties of each column
+        _send_progress('Step 3 - Grab the properties of each column\n')
         for column in columns:
             # Grab the section property name of the column
             column_section = self.sap_model.FrameObj.GetSection(column['Name'])
@@ -453,8 +464,12 @@ class etabs_api:
             column['D'] = column_section[2] # Depth (mm)
             column['B'] = column_section[3] # Width (mm)
 
+            # Grab angle of each column
+            local_axes = self.sap_model.FrameObj.GetLocalAxes(column['Name'])
+            column['Angle'] = local_axes[0]
 
         # Step 4 - Iterate through each load case and add frame forces to column dict
+        _send_progress('Step 4 - Iterate through each load case and add frame forces to column dict\n')
         if load_case_names is not None:    
             for column in columns:
                 # Iterate through each load case name
@@ -492,7 +507,7 @@ class etabs_api:
                     
                     # Add force dict to column dict
                     column[load_case_name] = frame_force_current_load_case_dict
-
+        _send_progress('Complete.\n')
         return columns
 
     """
